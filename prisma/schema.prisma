@@ -1,13 +1,495 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               BigInt            @id @default(autoincrement())
+  email            String            @unique @db.VarChar(255)
+  passwordHash     String            @map("password_hash")
+  role             String            @default("candidate") @db.VarChar(20)
+  status           String?           @default("active") @db.VarChar(20)
+  createdAt        DateTime?         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime?         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  candidateProfile CandidateProfile?
+  coverLetters     CoverLetter[]
+  cvUploads        CvUpload[]
+  employerProfile  EmployerProfile?
+  jobHistory       JobHistory[]
+  receivedMessages Message[]         @relation("MessageReceiver")
+  sentMessages     Message[]         @relation("MessageSender")
+  notifications    Notification[]
+
+  @@index([role, status], map: "idx_users_role_status")
+  @@index([email], map: "idx_users_email")
+  @@map("users")
+}
+
+model CandidateProfile {
+  id                   BigInt                 @id @default(autoincrement())
+  userId               BigInt                 @unique @map("user_id")
+  fullName             String?                @map("full_name")
+  city                 String?
+  cityCanonical        String?                @map("city_canonical")
+  locationEmbedding    Unsupported("vector")? @map("location_embedding")
+  summary              String?
+  summaryEmbedding     Unsupported("vector")? @map("summary_embedding")
+  salaryMin            Int?                   @map("salary_min")
+  salaryMax            Int?                   @map("salary_max")
+  currency             String?                @default("RUB") @db.VarChar(10)
+  remoteOk             Boolean?               @default(false) @map("remote_ok")
+  willingToRelocate    Boolean?               @default(false) @map("willing_to_relocate")
+  totalExperienceYears Decimal?               @map("total_experience_years") @db.Decimal(5, 1)
+  originalCvUrl        String?                @map("original_cv_url")
+  isActive             Boolean?               @default(false) @map("is_active")
+  cvUploadId           BigInt?                @map("cv_upload_id")
+  createdAt            DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  applications         Application[]
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cvUpload             CvUpload?              @relation(fields: [cvUploadId], references: [id], onUpdate: NoAction, map: "fk_candidate_profiles_cv_upload")
+  skills               CandidateSkill[]
+  cvAnalyses           CvAnalysis[]
+  cvResumeInsights     CvResumeInsight[]
+  experiences          Experience[]
+  matchScores          MatchScore[]
+  languages            ProfileLanguage[]
+  savedJobs            SavedJob[]
+
+  @@index([userId], map: "idx_candidate_profiles_user_id")
+  @@index([isActive], map: "idx_candidate_profiles_is_active")
+  @@index([cityCanonical], map: "idx_candidate_profiles_city_canonical")
+  @@map("candidate_profiles")
+}
+
+model EmployerProfile {
+  id                BigInt    @id @default(autoincrement())
+  userId            BigInt    @unique @map("user_id")
+  companyId         BigInt?   @map("company_id")
+  positionInCompany String?   @map("position_in_company")
+  createdAt         DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_employer_profiles_user_id")
+  @@map("employer_profiles")
+}
+
+model Company {
+  id          BigInt    @id @default(autoincrement())
+  name        String
+  description String?
+  size        String?   @db.VarChar(50)
+  industry    String?
+  values      String?
+  logoUrl     String?   @map("logo_url")
+  website     String?
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  jobs        Job[]
+
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "idx_companies_name", type: Gin)
+  @@map("companies")
+}
+
+model Skill {
+  id              BigInt                 @id @default(autoincrement())
+  name            String                 @unique @db.VarChar(255)
+  category        String?                @db.VarChar(100)
+  embedding       Unsupported("vector")?
+  needsReview     Boolean?               @default(false) @map("needs_review")
+  createdAt       DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  candidateSkills CandidateSkill[]
+  jobSkills       JobSkill[]
+  aliases         SkillAlias[]
+
+  @@index([name], map: "idx_skills_name")
+  @@index([category], map: "idx_skills_category")
+  @@map("skills")
+}
+
+model SkillAlias {
+  id        BigInt    @id @default(autoincrement())
+  skillId   BigInt    @map("skill_id")
+  alias     String    @db.VarChar(255)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  skill     Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([skillId, alias])
+  @@index([alias], map: "idx_skill_aliases_alias")
+  @@index([skillId], map: "idx_skill_aliases_skill_id")
+  @@map("skill_aliases")
+}
+
+model Language {
+  id               BigInt                 @id @default(autoincrement())
+  canonicalName    String                 @unique @map("canonical_name") @db.VarChar(100)
+  embedding        Unsupported("vector")?
+  createdAt        DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
+  jobLanguages     JobLanguage[]
+  aliases          LanguageAlias[]
+  profileLanguages ProfileLanguage[]
+
+  @@index([canonicalName], map: "idx_languages_canonical_name")
+  @@map("languages")
+}
+
+model LanguageAlias {
+  id         BigInt    @id @default(autoincrement())
+  languageId BigInt    @map("language_id")
+  alias      String    @db.VarChar(100)
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  language   Language  @relation(fields: [languageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([languageId, alias])
+  @@index([alias], map: "idx_language_aliases_alias")
+  @@map("language_aliases")
+}
+
+model CandidateSkill {
+  profileId BigInt           @map("profile_id")
+  skillId   BigInt           @map("skill_id")
+  level     String?          @db.VarChar(20)
+  years     Decimal?         @db.Decimal(4, 1)
+  createdAt DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skill     Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([profileId, skillId])
+  @@index([profileId], map: "idx_candidate_skills_profile_id")
+  @@index([skillId], map: "idx_candidate_skills_skill_id")
+  @@map("candidate_skills")
+}
+
+model ProfileLanguage {
+  profileId  BigInt           @map("profile_id")
+  languageId BigInt           @map("language_id")
+  level      String?          @db.VarChar(20)
+  createdAt  DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  language   Language         @relation(fields: [languageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profile    CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([profileId, languageId])
+  @@index([profileId], map: "idx_profile_languages_profile_id")
+  @@map("profile_languages")
+}
+
+model Job {
+  id                BigInt                 @id @default(autoincrement())
+  companyId         BigInt                 @map("company_id")
+  title             String
+  description       String?
+  requirements      String?
+  status            String?                @default("draft") @db.VarChar(20)
+  salaryMin         Int?                   @map("salary_min")
+  salaryMax         Int?                   @map("salary_max")
+  currency          String?                @default("RUB") @db.VarChar(10)
+  expYearsMin       Int?                   @default(0) @map("exp_years_min")
+  remoteOk          Boolean?               @default(false) @map("remote_ok")
+  location          String?
+  locationEmbedding Unsupported("vector")? @map("location_embedding")
+  embedding         Unsupported("vector")?
+  createdAt         DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  applications      Application[]
+  coverLetters      CoverLetter[]
+  jobHistory        JobHistory[]
+  jobLanguages      JobLanguage[]
+  jobSkills         JobSkill[]
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  matchScores       MatchScore[]
+  savedJobs         SavedJob[]
+
+  @@index([companyId], map: "idx_jobs_company_id")
+  @@index([status], map: "idx_jobs_status")
+  @@index([location], map: "idx_jobs_location")
+  @@map("jobs")
+}
+
+model JobSkill {
+  jobId     BigInt    @map("job_id")
+  skillId   BigInt    @map("skill_id")
+  type      String    @default("nice_to_have") @db.VarChar(20)
+  weight    Decimal?  @default(1.0) @db.Decimal(3, 2)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skill     Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([jobId, skillId])
+  @@index([jobId], map: "idx_job_skills_job_id")
+  @@index([skillId], map: "idx_job_skills_skill_id")
+  @@map("job_skills")
+}
+
+model JobLanguage {
+  jobId         BigInt    @map("job_id")
+  languageId    BigInt    @map("language_id")
+  requiredLevel String    @map("required_level") @db.VarChar(20)
+  isCritical    Boolean?  @default(false) @map("is_critical")
+  weight        Decimal?  @default(1.0) @db.Decimal(3, 2)
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  language      Language  @relation(fields: [languageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([jobId, languageId])
+  @@map("job_languages")
+}
+
+model Application {
+  id                 BigInt           @id @default(autoincrement())
+  candidateProfileId BigInt           @map("candidate_profile_id")
+  jobId              BigInt           @map("job_id")
+  status             String?          @default("submitted") @db.VarChar(30)
+  coverLetterId      BigInt?          @map("cover_letter_id")
+  createdAt          DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  job                Job              @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  messages           Message[]
+
+  @@unique([candidateProfileId, jobId])
+  @@index([candidateProfileId], map: "idx_applications_candidate")
+  @@index([jobId], map: "idx_applications_job")
+  @@index([status], map: "idx_applications_status")
+  @@map("applications")
+}
+
+model MatchScore {
+  id                 BigInt           @id @default(autoincrement())
+  candidateProfileId BigInt           @map("candidate_profile_id")
+  jobId              BigInt           @map("job_id")
+  score              Decimal          @db.Decimal(5, 2)
+  details            Json
+  computedAt         DateTime?        @default(now()) @map("computed_at") @db.Timestamptz(6)
+  updatedAt          DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  job                Job              @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([candidateProfileId, jobId])
+  @@index([candidateProfileId], map: "idx_match_scores_candidate")
+  @@index([jobId], map: "idx_match_scores_job")
+  @@index([score(sort: Desc)], map: "idx_match_scores_score")
+  @@map("match_scores")
+}
+
+model SavedJob {
+  candidateProfileId BigInt           @map("candidate_profile_id")
+  jobId              BigInt           @map("job_id")
+  createdAt          DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  job                Job              @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([candidateProfileId, jobId])
+  @@map("saved_jobs")
+}
+
+model JobHistory {
+  id             BigInt    @id @default(autoincrement())
+  jobId          BigInt    @map("job_id")
+  editorId       BigInt?   @map("editor_id")
+  changedFields  Json?     @map("changed_fields")
+  previousValues Json?     @map("previous_values")
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  editor         User?     @relation(fields: [editorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([jobId], map: "idx_job_history_job_id")
+  @@map("job_history")
+}
+
+model MatchingWeight {
+  id          BigInt    @id @default(autoincrement())
+  component   String    @unique @db.VarChar(50)
+  weight      Decimal   @db.Decimal(4, 3)
+  description String?
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("matching_weights")
+}
+
+model GeoCluster {
+  id              BigInt    @id @default(autoincrement())
+  clusterName     String    @unique @map("cluster_name") @db.VarChar(100)
+  canonicalCities String[]  @map("canonical_cities")
+  boostValue      Decimal?  @default(0.92) @map("boost_value") @db.Decimal(3, 2)
+  aliases         Json?
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([clusterName], map: "idx_geo_clusters_cluster_name")
+  @@map("geo_clusters")
+}
+
+model CvUpload {
+  id                BigInt             @id @default(autoincrement())
+  userId            BigInt             @map("user_id")
+  originalUrl       String             @map("original_url")
+  mimeType          String?            @map("mime_type")
+  sizeBytes         BigInt?            @map("size_bytes")
+  extractedText     String?            @map("extracted_text")
+  parsedJson        Json?              @map("parsed_json")
+  status            String?            @default("uploaded") @db.VarChar(20)
+  confidence        Decimal?           @db.Decimal(3, 2)
+  errorMessage      String?            @map("error_message")
+  createdAt         DateTime?          @default(now()) @map("created_at") @db.Timestamptz(6)
+  parsedAt          DateTime?          @map("parsed_at") @db.Timestamptz(6)
+  expiresAt         DateTime?          @map("expires_at") @db.Timestamptz(6)
+  reviewedAt        DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  candidateProfiles CandidateProfile[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_cv_uploads_user_id")
+  @@index([status], map: "idx_cv_uploads_status")
+  @@index([expiresAt], map: "idx_cv_uploads_expires_at")
+  @@map("cv_uploads")
+}
+
+model Experience {
+  id           BigInt           @id @default(autoincrement())
+  profileId    BigInt           @map("profile_id")
+  company      String
+  position     String
+  startDate    DateTime?        @map("start_date") @db.Date
+  endDate      DateTime?        @map("end_date") @db.Date
+  current      Boolean?         @default(false)
+  description  String?
+  technologies Json?
+  sortOrder    Int?             @default(0) @map("sort_order")
+  createdAt    DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  profile      CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([profileId], map: "idx_experiences_profile_id")
+  @@index([profileId, startDate, endDate], map: "idx_experiences_dates")
+  @@map("experiences")
+}
+
+model CvAnalysis {
+  id                      BigInt           @id @default(autoincrement())
+  profileId               BigInt           @map("profile_id")
+  overallScore            Decimal          @map("overall_score") @db.Decimal(5, 2)
+  level                   String?          @db.VarChar(20)
+  details                 Json
+  summary                 String?
+  evaluationPromptVersion String?          @map("evaluation_prompt_version") @db.VarChar(50)
+  llmModel                String?          @map("llm_model") @db.VarChar(50)
+  tokensUsed              Int?             @map("tokens_used")
+  llmConfidence           Decimal?         @map("llm_confidence") @db.Decimal(3, 2)
+  rawLlmResponse          Json?            @map("raw_llm_response")
+  createdAt               DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isCurrent               Boolean?         @default(true) @map("is_current")
+  profile                 CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cvResumeInsight         CvResumeInsight?
+
+  @@index([profileId, isCurrent], map: "idx_cv_analyses_profile_current")
+  @@index([profileId, createdAt(sort: Desc)], map: "idx_cv_analyses_profile_created")
+  @@map("cv_analyses")
+}
+
+model CvResumeInsight {
+  id                      BigInt           @id @default(autoincrement())
+  cvAnalysisId            BigInt           @unique(map: "uq_cv_resume_insights_analysis") @map("cv_analysis_id")
+  profileId               BigInt           @map("profile_id")
+  explanationDetailed     Json             @map("explanation_detailed")
+  improvementPlan         Json             @map("improvement_plan")
+  recommendedCourses      Json?            @map("recommended_courses")
+  ragChunkIds             BigInt[]         @map("rag_chunk_ids")
+  insightPromptVersion    String?          @map("insight_prompt_version") @db.VarChar(50)
+  llmModel                String?          @map("llm_model") @db.VarChar(50)
+  tokensUsed              Int?             @map("tokens_used")
+  isStale                 Boolean?         @default(false) @map("is_stale")
+  staleReason             String?          @map("stale_reason")
+  generatedForProfileHash String?          @map("generated_for_profile_hash")
+  generatedAt             DateTime?        @default(now()) @map("generated_at") @db.Timestamptz(6)
+  updatedAt               DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cvAnalysis              CvAnalysis       @relation(fields: [cvAnalysisId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profile                 CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([profileId, generatedAt(sort: Desc)], map: "idx_cv_resume_insights_profile")
+  @@index([isStale], map: "idx_cv_resume_insights_stale")
+  @@map("cv_resume_insights")
+}
+
+model CoverLetter {
+  id                BigInt    @id @default(autoincrement())
+  userId            BigInt    @map("user_id")
+  jobId             BigInt    @map("job_id")
+  profileSnapshot   Json?     @map("profile_snapshot")
+  letterText        String    @map("letter_text")
+  metadata          Json?
+  generatedAt       DateTime? @default(now()) @map("generated_at") @db.Timestamptz(6)
+  usedInApplication Boolean?  @default(false) @map("used_in_application")
+  job               Job       @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId, jobId], map: "idx_cover_letters_user_job")
+  @@index([jobId], map: "idx_cover_letters_job")
+  @@map("cover_letters")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model KbChunk {
+  id        BigInt                @id @default(autoincrement())
+  content   String
+  embedding Unsupported("vector")
+  metadata  Json
+  hash      String?               @unique
+  createdAt DateTime?             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime?             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([embedding], map: "idx_kb_chunks_embedding")
+  @@index([hash], map: "idx_kb_chunks_hash")
+  @@index([metadata(ops: JsonbPathOps)], map: "idx_kb_chunks_metadata", type: Gin)
+  @@map("kb_chunks")
+}
+
+model Notification {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt    @map("user_id")
+  type      String    @db.VarChar(50)
+  title     String?
+  payload   Json?
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  users     User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId, createdAt(sort: Desc)], map: "idx_notifications_user_unread")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_notifications_user_all")
+  @@map("notifications")
+}
+
+model Message {
+  id            BigInt       @id @default(autoincrement())
+  senderId      BigInt       @map("sender_id")
+  receiverId    BigInt       @map("receiver_id")
+  applicationId BigInt?      @map("application_id")
+  content       String
+  isRead        Boolean?     @default(false) @map("is_read")
+  createdAt     DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  application   Application? @relation(fields: [applicationId], references: [id], onUpdate: NoAction)
+  receiver      User         @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender        User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([senderId], map: "idx_messages_sender")
+  @@index([receiverId], map: "idx_messages_receiver")
+  @@index([applicationId], map: "idx_messages_application")
+  @@index([createdAt(sort: Desc)], map: "idx_messages_created")
+  @@map("messages")
+}
+
+model goose_db_version {
+  id         Int      @id @default(autoincrement())
+  version_id BigInt
+  is_applied Boolean
+  tstamp     DateTime @default(now()) @db.Timestamp(6)
 }
