@@ -2,6 +2,11 @@ generator client {
   provider        = "prisma-client-js"
 }
 
+generator types {
+  provider = "prisma-type-generator"
+  output   = "../generated/types" 
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
