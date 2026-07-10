@@ -12,13 +12,12 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { LoginResponseDto, RefreshResponseDto, RegisterResponseDto, UserResponseDto } from './dto/auth-responses.dto';
-import { User } from '@prisma/client';
+import { LoginDto, LoginResponseDto, RefreshResponseDto, RegisterDto, RegisterResponseDto, UserResponseDto } from '@/shared/dto/auth.dto';
+import { User, EmployerProfile } from '@prisma/client';
 
 
 @ApiTags('Auth')
@@ -58,12 +57,21 @@ export class AuthController {
         // ⚠️ Токены в body ТОЛЬКО для development для сваггера
         const isDev = process.env.NODE_ENV !== 'production';
 
+        const returnUserData = {
+            email: tokens.user.email,
+            role: tokens.user.role,
+            status: tokens.user.status
+        }
+        tokens.user = returnUserData as User;
+
         if (isDev) {
             return {
                 user: tokens.user,
                 accessToken: tokens.accessToken,
             };
         }
+
+
         return {
             message: 'Пользователь успешно вошел в систему',
             user: tokens.user,
@@ -107,6 +115,9 @@ export class AuthController {
         type: UserResponseDto,
     })
     async getProfile(@Request() req): Promise<User> {
-        return req.user;
+        const returnUserData = Object.assign(req.user)
+        delete returnUserData.passwordHash
+        delete returnUserData.deletedAt
+        return returnUserData
     }
 }

@@ -1,31 +1,68 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateCandidateDto } from '@/shared/dto/candidate-profile.dto';
+import { candidateSelect } from './constants/selects';
+
 
 @Injectable()
 export class CandidateService {
     constructor(private prisma: PrismaService) { }
 
     async getProfileById(id: string) {
-        const user = await this.prisma.user.findUnique({
+        const profile = await this.prisma.candidateProfile.findUnique({
             where: { id: BigInt(id) },
-            select: {
-                id: true,
-                email: true,
-                role: true,
-                status: true,
-                createdAt: true,
-                // ️ Не возвращаем passwordHash, deletedAt и другие чувствительные поля
+            select: candidateSelect,
+        });
+
+        if (!profile) {
+            throw new NotFoundException(`Candidate with ID ${id} not found`);
+        }
+
+        return profile
+    }
+
+    async findAll() {
+        const candidates = await this.prisma.candidateProfile.findMany({
+            where: {
+                deletedAt: null,
+            },
+            select: candidateSelect,
+            orderBy: {
+                createdAt: 'desc',
             },
         });
 
-        if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+
+        return candidates;
+    }
+
+    async update(id: string, dto: UpdateCandidateDto, currentUserId: number) {
+        const profile = await this.prisma.candidateProfile.findUnique({
+            where: { id: BigInt(id), deletedAt: null },
+        });
+
+        if (!profile) {
+            throw new NotFoundException(`Профиль с ID ${id} не найден`);
         }
 
-        // BigInt -> Number для корректной JSON-сериализации
-        return {
-            ...user,
-            id: Number(user.id),
-        };
+        if (Number(profile.userId) !== currentUserId) {
+            throw new ForbiddenException('У вас нет прав на редактирование этого профиля');
+        }
+
+        const cleanData = Object.fromEntries(
+            Object.entries(dto).filter(([_, value]) => value !== undefined)
+        );
+
+        if (Object.keys(cleanData).length === 0) {
+            throw new BadRequestException('Нет данных для обновления');
+        }
+
+        const updatedProfile = await this.prisma.candidateProfile.update({
+            where: { id: BigInt(id) },
+            data: cleanData,
+            select: candidateSelect,
+        });
+
+        return updatedProfile
     }
 }

@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS employer_profiles (
     company_id BIGINT,                      -- ссылка на компанию (добавим позже)
     position_in_company TEXT,               -- должность HR
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_employer_profiles_user_id ON employer_profiles(user_id);

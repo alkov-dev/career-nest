@@ -9,11 +9,10 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-import { RegisterDto, UserRole } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 import { JwtPayload, JwtRefreshPayload, Tokens } from './interfaces/jwt-payload.interface';
 import { User } from '@prisma/client';
 import { Response } from 'express';
+import { LoginDto, RegisterDto, UserRole } from '@/shared/dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -186,6 +185,7 @@ export class AuthService {
             expiresIn: '7d',
             secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         });
+
 
         return { user, accessToken, refreshToken };
     }
