@@ -2,11 +2,6 @@ generator client {
   provider        = "prisma-client-js"
 }
 
-generator types {
-  provider = "prisma-type-generator"
-  output   = "../generated/types" 
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -29,6 +24,12 @@ model User {
   receivedMessages Message[]         @relation("MessageReceiver")
   sentMessages     Message[]         @relation("MessageSender")
   notifications    Notification[]
+
+  emailConfirmToken     String?     @unique @map("email_confirm_token")
+  emailConfirmExpires   DateTime?   @map("email_confirm_expires")
+
+  passwordResetToken    String?     @unique @map("password_reset_token")
+  passwordResetExpires  DateTime?   @map("password_reset_expires")
 
   @@index([role, status], map: "idx_users_role_status")
   @@index([email], map: "idx_users_email")

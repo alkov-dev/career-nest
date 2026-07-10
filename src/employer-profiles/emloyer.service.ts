@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateEmployerDto } from '../shared/dto/emloyer.dto';
+import { UpdateEmployerDto } from '../shared/dto/emloyer-profile.dto';
+import { employerProfile } from '@/shared/constants/selects';
 
 @Injectable()
 export class EmployerService {
@@ -9,20 +10,7 @@ export class EmployerService {
     async getProfileById(id: string) {
         const profile = await this.prisma.employerProfile.findUnique({
             where: { id: BigInt(id) },
-            select: {
-                id: true,
-                userId: true,
-                companyId: true,
-                positionInCompany: true,
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true,
-                        status: true,
-                    },
-                },
-            }
+            select: employerProfile
         });
 
         if (!profile) {
@@ -34,20 +22,7 @@ export class EmployerService {
 
     async findAll() {
         const employers = await this.prisma.employerProfile.findMany({
-            select: {
-                id: true,
-                userId: true,
-                companyId: true,
-                positionInCompany: true,
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true,
-                        status: true,
-                    },
-                },
-            },
+            select: employerProfile,
             orderBy: {
                 createdAt: 'desc',
             },
@@ -80,20 +55,7 @@ export class EmployerService {
         const updatedProfile = await this.prisma.employerProfile.update({
             where: { id: BigInt(id) },
             data: cleanData,
-            select: {
-                id: true,
-                userId: true,
-                companyId: true,
-                positionInCompany: true,
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true,
-                        status: true,
-                    },
-                },
-            },
+            select: employerProfile,
         });
 
         return updatedProfile

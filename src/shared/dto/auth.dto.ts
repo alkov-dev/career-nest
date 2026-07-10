@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
-import { User, CandidateProfile, CandidateSkill, Application, CvUpload, CvAnalysis } from '@prisma/client';
+import { JobHistory, Message, Notification } from '@prisma/client';
+import { CandidateResponseDto } from './candidate-profile.dto';
+import { Expose, Type } from 'class-transformer';
+import { CoverLetterResponseDto } from './cover-letter.dto';
+import { CvUploadResponseDto } from './cv-upload.dto';
+import { JobHistoryResponseDto } from './job-history.dto';
+import { MessageResponseDto } from './message.dto';
+import { NotificationResponseDto } from './notification.dto';
+import { EmployerProfileResponseDto } from './emloyer-profile.dto';
+import { UserRole } from '../enums/enums';
 
 export class UserResponseDto {
     @ApiProperty({ type: UserResponseDto, description: 'Данные пользователя' })
@@ -14,14 +23,64 @@ export class UserResponseDto {
     @ApiProperty({ example: 'candidate', description: 'Роль пользователя' })
     role!: string;
 
-    @ApiProperty({ example: 'active', description: 'Статус пользователя' })
+    @ApiPropertyOptional({
+        example: '2026-07-11T16:00:00.000Z', description: 'Срок действия токена подтверждения'
+    })
+    emailConfirmExpires?: Date | null;
+
+    @ApiPropertyOptional({
+        example: '2026-07-11T16:00:00.000Z', description: 'Срок действия токена смены пароля'
+    })
+    passwordResetExpires?: Date | null;
+
+    @ApiPropertyOptional({ example: 'active', description: 'Статус пользователя' })
     status?: string | null;
 
     @ApiProperty({ example: new Date(), description: 'Дата создания пользователя' })
     createdAt!: Date;
 
-    @ApiProperty({ example: new Date(), description: 'Дата обновления пользователя' })
+    @ApiPropertyOptional({ example: new Date(), description: 'Дата обновления пользователя' })
     updatedAt?: Date | null;
+
+    @ApiPropertyOptional({ type: () => [CandidateResponseDto] })
+    @Type(() => CandidateResponseDto)
+    @Expose()
+    candidateProfile?: CandidateResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [EmployerProfileResponseDto] })
+    @Type(() => EmployerProfileResponseDto)
+    @Expose()
+    employerProfile?: EmployerProfileResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [CoverLetterResponseDto] })
+    @Type(() => CoverLetterResponseDto)
+    @Expose()
+    coverLetters?: CoverLetterResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [CvUploadResponseDto] })
+    @Type(() => CvUploadResponseDto)
+    @Expose()
+    cvUploads?: CvUploadResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [JobHistoryResponseDto] })
+    @Type(() => JobHistoryResponseDto)
+    @Expose()
+    jobHistory?: JobHistoryResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [MessageResponseDto] })
+    @Type(() => MessageResponseDto)
+    @Expose()
+    receivedMessages?: MessageResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [MessageResponseDto] })
+    @Type(() => MessageResponseDto)
+    @Expose()
+    sentMessages?: MessageResponseDto[];
+
+    @ApiPropertyOptional({ type: () => [NotificationResponseDto] })
+    @Type(() => NotificationResponseDto)
+    @Expose()
+    notifications?: NotificationResponseDto[];
 }
 
 export class LoginResponseDto {
@@ -50,12 +109,6 @@ export class RegisterResponseDto {
     message!: string;
 }
 
-
-
-export enum UserRole {
-    CANDIDATE = 'candidate',
-    EMPLOYER = 'employer',
-}
 
 export class RegisterDto {
     @ApiProperty({
@@ -88,7 +141,7 @@ export class RegisterDto {
 
     @ApiProperty({
         description: 'Роль пользователя',
-        example: 'candidate',
+        example: 'candidate, employer',
         required: false,
     })
     @IsOptional()

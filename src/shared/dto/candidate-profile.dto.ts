@@ -1,12 +1,15 @@
-
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Expose, Type } from 'class-transformer';
 import { SkillResponseDto } from '@/shared/dto/candidate-skill.dto';
-import { UserResponseDto } from './auth.dto';
 import { ApplicationResponseDto } from './application.dto';
-import { CvUploadResponseDto } from './cvupload.dto';
-import { CvAnalysesResponseDto } from './cvanalyses.dto';
+import { CvUploadResponseDto } from './cv-upload.dto';
+import { CvAnalysesResponseDto } from './cv-analyses.dto';
+import { CvResumeInsightResponseDto } from './cv-resume-insight.dto';
+import { ExperienceResponseDto } from './experiense.dto';
+import { MatchScoreResponseDto } from './match-score.dto';
+import { ProfileLanguageResponseDto } from './profile-languadge.dto';
+import { SavedJobResponseDto } from './saved-job.dto';
 
 
 
@@ -64,12 +67,6 @@ export class CandidateResponseDto {
     updatedAt?: Date | null;
 
     @ApiProperty({
-        type: UserResponseDto,
-        description: 'Данные пользователя'
-    })
-    user!: UserResponseDto;
-
-    @ApiProperty({
         type: CvUploadResponseDto,
         description: 'Данные при загрузке файла'
     })
@@ -89,6 +86,31 @@ export class CandidateResponseDto {
     @Type(() => CvAnalysesResponseDto)
     @Expose()
     cvAnalyses!: CvAnalysesResponseDto[];
+
+    @ApiProperty({ type: [CvResumeInsightResponseDto] })
+    @Type(() => CvResumeInsightResponseDto)
+    @Expose()
+    cvResumeInsights!: CvResumeInsightResponseDto[];
+
+    @ApiProperty({ type: [ExperienceResponseDto] })
+    @Type(() => ExperienceResponseDto)
+    @Expose()
+    experiences!: ExperienceResponseDto[];
+
+    @ApiProperty({ type: [MatchScoreResponseDto] })
+    @Type(() => MatchScoreResponseDto)
+    @Expose()
+    matchScores!: MatchScoreResponseDto[];
+
+    @ApiProperty({ type: [ProfileLanguageResponseDto] })
+    @Type(() => ProfileLanguageResponseDto)
+    @Expose()
+    languages!: ProfileLanguageResponseDto[];
+
+    @ApiProperty({ type: [SavedJobResponseDto] })
+    @Type(() => SavedJobResponseDto)
+    @Expose()
+    savedJobs!: SavedJobResponseDto[];
 
 }
 

@@ -9,15 +9,18 @@ import {
     Res,
     Request,
     UnauthorizedException,
+    Query,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { LoginDto, LoginResponseDto, RefreshResponseDto, RegisterDto, RegisterResponseDto, UserResponseDto } from '@/shared/dto/auth.dto';
-import { User, EmployerProfile } from '@prisma/client';
+import { User, EmployerProfile, JobHistory } from '@prisma/client';
+import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
+import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
 
 
 @ApiTags('Auth')
@@ -26,20 +29,76 @@ import { User, EmployerProfile } from '@prisma/client';
 export class AuthController {
     constructor(private authService: AuthService) { }
 
+
     @Public()
     @Post('register')
     @HttpCode(HttpStatus.CREATED)
-    @ApiOperation({ summary: 'Регистрация нового пользователя' })
+    @ApiOperation({ summary: 'Регистрация (отправляет email)' })
+    @ApiResponse({ status: 409, description: 'Email уже занят' })
     @ApiResponse({
         status: 201,
-        description: 'Пользователь успешно зарегистрирован',
+        description: 'Пользователь зарегистрирован. Проверьте email для подтверждения. ',
         type: RegisterResponseDto,
     })
     async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-        const tokens = await this.authService.login(dto);
+        const tokens = await this.authService.register(dto);
         this.authService.setTokensInCookie(res, tokens.accessToken, tokens.refreshToken);
-        return { message: 'Пользователь успешно зарегистрирован' };
+        return {
+            message: 'Пользователь зарегистрирован. Проверьте email для подтверждения.'
+        };
     }
+
+
+
+    @Public()
+    @Get('confirm-email')
+    @ApiOperation({ summary: 'Подтверждение email по токену' })
+    @ApiQuery({ name: 'token', description: 'Токен подтверждения', example: 'abc123...' })
+    @ApiResponse({ status: 200, description: 'Email подтверждён' })
+    @ApiResponse({ status: 400, description: 'Недействительный токен' })
+    async confirmEmail(@Query('token') token: string) {
+        return this.authService.confirmEmail(token);
+    }
+
+
+
+    @Public()
+    @Post('resend-confirmation')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Повторная отправка письма подтверждения' })
+    @ApiResponse({ status: 200, description: 'Письмо отправлено' })
+    async resendConfirmation(@Body('email') email: string) {
+        return this.authService.resendConfirmationEmail(email);
+    }
+
+
+
+
+    @Public()
+    @Post('request-password-reset')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Запрос на сброс пароля' })
+    @ApiBody({ type: RequestPasswordResetDto })
+    @ApiResponse({ status: 200, description: 'Письмо отправлено' })
+    async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+        return this.authService.requestPasswordReset(dto);
+    }
+
+
+
+    @Public()
+    @Post('reset-password')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Установить новый пароль' })
+    @ApiBody({ type: ResetPasswordDto })
+    @ApiResponse({ status: 200, description: 'Пароль изменён' })
+    @ApiResponse({ status: 400, description: 'Недействительный токен' })
+    async resetPassword(@Body() dto: ResetPasswordDto) {
+        return this.authService.resetPassword(dto);
+    }
+
+
+
 
     @Public()
     @Post('login')
@@ -71,13 +130,13 @@ export class AuthController {
             };
         }
 
-
         return {
             message: 'Пользователь успешно вошел в систему',
             user: tokens.user,
         };
-
     }
+
+
 
     @Public()
     @Post('refresh')
@@ -93,9 +152,12 @@ export class AuthController {
         if (!refreshToken) {
             throw new UnauthorizedException('No refresh token provided');
         }
-        this.authService.refreshToken(refreshToken, res);
+        const tokens = await this.authService.refreshToken(refreshToken, res);
+        this.authService.setTokensInCookie(res, tokens.accessToken, tokens.refreshToken);
         return { message: 'Токены успешно обновлены' }
     }
+
+
 
     @Public()
     @Post('logout')
@@ -107,6 +169,7 @@ export class AuthController {
     }
 
 
+
     @Get('me')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Получить профиль текущего пользователя' })
@@ -114,10 +177,7 @@ export class AuthController {
         status: 201,
         type: UserResponseDto,
     })
-    async getProfile(@Request() req): Promise<User> {
-        const returnUserData = Object.assign(req.user)
-        delete returnUserData.passwordHash
-        delete returnUserData.deletedAt
-        return returnUserData
+    async getProfile(@Request() req): Promise<any> {
+        return await this.authService.aboutMe(req.user.id);
     }
 }

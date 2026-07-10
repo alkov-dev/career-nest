@@ -6,10 +6,9 @@ import {
     ApiParam,
     ApiResponse,
 } from '@nestjs/swagger';
-import { UpdateEmployerDto } from '../shared/dto/emloyer.dto';
+import { EmployerProfileResponseDto, UpdateEmployerDto } from '../shared/dto/emloyer-profile.dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { Public } from '@/auth/decorators/public.decorator';
-import { EmployerResponseDto } from '../shared/dto/emloyer.dto';
 
 @ApiTags('Employer Profiles')
 @Controller('employers')
@@ -23,7 +22,7 @@ export class EmployerController {
     @ApiResponse({
         status: 200,
         description: 'Список работодателей',
-        type: [EmployerResponseDto],
+        type: [EmployerProfileResponseDto],
     })
     async findAll() {
         return this.employerService.findAll();
@@ -36,7 +35,7 @@ export class EmployerController {
     @ApiResponse({
         status: 200,
         description: 'Профиль найден',
-        type: EmployerResponseDto,
+        type: EmployerProfileResponseDto,
     })
     @ApiResponse({
         status: 404,
@@ -53,7 +52,7 @@ export class EmployerController {
     @ApiResponse({
         status: 200,
         description: 'Профиль обновлён',
-        type: EmployerResponseDto,
+        type: EmployerProfileResponseDto,
     })
     async update(
         @Param('id') id: string,

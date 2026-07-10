@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCandidateDto } from '@/shared/dto/candidate-profile.dto';
-import { candidateSelect } from './constants/selects';
+import { candidateSelect } from '@/shared/constants/selects';
+
 
 
 @Injectable()

@@ -4,15 +4,22 @@ import {
     UnauthorizedException,
     ConflictException,
     Logger,
+    BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { JwtPayload, JwtRefreshPayload, Tokens } from './interfaces/jwt-payload.interface';
 import { User } from '@prisma/client';
 import { Response } from 'express';
-import { LoginDto, RegisterDto, UserRole } from '@/shared/dto/auth.dto';
+import { LoginDto, RegisterDto } from '@/shared/dto/auth.dto';
+import { userSelect } from '@/shared/constants/selects';
+import { EmailService } from '@/email/email.service';
+import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
+import { UserStatus, UserRole } from '@/shared/enums/enums';
+import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +29,7 @@ export class AuthService {
         private prisma: PrismaService,
         private jwtService: JwtService,
         private configService: ConfigService,
+        private emailService: EmailService,
     ) { }
 
 
@@ -37,12 +45,17 @@ export class AuthService {
 
         const passwordHash = await bcrypt.hash(dto.password, 10);
 
+        const emailConfirmToken = crypto.randomBytes(32).toString('hex');
+        const emailConfirmExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
+
         const user = await this.prisma.user.create({
             data: {
                 email: dto.email.toLowerCase(),
                 passwordHash,
                 role: dto.role || UserRole.CANDIDATE,
-                status: 'active',
+                status: 'pending',
+                emailConfirmToken,
+                emailConfirmExpires,
             },
         });
 
@@ -64,11 +77,72 @@ export class AuthService {
             });
         }
 
-        this.logger.log(`✅ Registered user: ${user.email} (role: ${user.role})`);
+        // Отправляем email с подтверждением
+        await this.emailService.sendConfirmationEmail(user.email, emailConfirmToken);
+
+        this.logger.log(`✅ User registered: ${user.email} (pending confirmation)`);
 
         return this.generateTokens(user);
     }
 
+    async confirmEmail(token: string) {
+        const user = await this.prisma.user.findUnique({
+            where: {
+                emailConfirmToken: token,
+                emailConfirmExpires: {
+                    gte: new Date(),
+                },
+            },
+        });
+
+        if (!user) {
+            throw new BadRequestException('Недействительный или истёкший токен');
+        }
+
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                status: UserStatus.ACTIVE,
+                emailConfirmToken: null,
+                emailConfirmExpires: null,
+            },
+        });
+
+        this.logger.log(`✅ Email confirmed for user: ${user.email}`);
+
+        return {
+            message: 'Email успешно подтверждён. Теперь вы можете войти.',
+        };
+    }
+
+    async resendConfirmationEmail(email: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (!user) {
+            throw new BadRequestException('Пользователь не найден');
+        }
+
+        if (user.status === UserStatus.ACTIVE) {
+            throw new BadRequestException('Email уже подтверждён');
+        }
+
+        const emailConfirmToken = crypto.randomBytes(32).toString('hex');
+        const emailConfirmExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailConfirmToken,
+                emailConfirmExpires,
+            },
+        });
+
+        await this.emailService.sendConfirmationEmail(user.email, emailConfirmToken);
+
+        return { message: 'Письмо с подтверждением отправлено повторно' };
+    }
 
     async login(dto: LoginDto): Promise<Tokens> {
         const user = await this.prisma.user.findUnique({
@@ -83,7 +157,7 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        if (user.status !== 'active') {
+        if (user.status !== UserStatus.ACTIVE) {
             this.logger.warn(`[AuthService]: ❌ Login failed: account not active (${dto.email})`);
             throw new UnauthorizedException('Account is not active');
         }
@@ -121,15 +195,12 @@ export class AuthService {
             },
         });
 
-        if (!user || user.status !== 'active') {
+
+        if (!user || user.status !== UserStatus.ACTIVE) {
             throw new UnauthorizedException('User not found or inactive');
         }
 
         const tokens = this.generateTokens(user);
-
-        if (res) {
-            this.setTokensInCookie(res, tokens.accessToken, tokens.refreshToken);
-        }
 
         this.logger.log(`🔄 Tokens refreshed for user: ${user.email}`);
 
@@ -157,7 +228,7 @@ export class AuthService {
             },
         });
 
-        if (!user || user.status !== 'active') {
+        if (!user || user.status !== UserStatus.ACTIVE) {
             return null;
         }
 
@@ -176,9 +247,10 @@ export class AuthService {
             sub: Number(user.id),
         };
 
+
         const accessToken = this.jwtService.sign(accessPayload, {
-            expiresIn: '15m',
-            secret: this.configService.get<string>('JWT_SECRET'),
+            expiresIn: '115m',
+            secret: this.configService.get<string>('JWT_SECRET')!,
         });
 
         const refreshToken = this.jwtService.sign(refreshPayload, {
@@ -189,8 +261,6 @@ export class AuthService {
 
         return { user, accessToken, refreshToken };
     }
-
-
 
     setTokensInCookie(res: Response, accessToken: string, refreshToken: string) {
         const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
@@ -234,4 +304,83 @@ export class AuthService {
 
         return user;
     }
+
+    async aboutMe(id: string) {
+        const profile = await this.prisma.user.findUnique({
+            where: { id: BigInt(id) },
+            select: userSelect,
+        });
+
+        return profile
+    }
+
+    async requestPasswordReset(dto: RequestPasswordResetDto) {
+        this.logger.log(`🔐 Password reset requested for: ${dto.email}`);
+
+        const user = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
+
+        if (!user) {
+            this.logger.warn(`⚠️ Password reset requested for non-existent email: ${dto.email}`);
+            return { message: 'Если пользователь с таким email существует, письмо отправлено' };
+        }
+
+        if (user.status !== UserStatus.ACTIVE) {
+            throw new BadRequestException('Аккаунт не активирован');
+        }
+
+        const passwordResetToken = crypto.randomBytes(32).toString('hex');
+        const passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+
+
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordResetToken,
+                passwordResetExpires,
+            },
+        });
+
+        await this.emailService.sendPasswordResetEmail(user.email, passwordResetToken);
+
+        this.logger.log(`✅ Password reset email sent to: ${user.email}`);
+
+        return { message: 'Если пользователь с таким email существует, письмо отправлено' };
+    }
+
+    async resetPassword(dto: ResetPasswordDto) {
+        this.logger.log(`🔐 Password reset attempt with token`);
+
+        const user = await this.prisma.user.findUnique({
+            where: {
+                passwordResetToken: dto.token,
+                passwordResetExpires: {
+                    gte: new Date(),
+                },
+            },
+        });
+
+        if (!user) {
+            throw new BadRequestException('Недействительный или истёкший токен');
+        }
+
+        // Хешируем новый пароль
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+
+        // Обновляем пароль и очищаем токен
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordHash,
+                passwordResetToken: null,
+                passwordResetExpires: null,
+            },
+        });
+
+        this.logger.log(`✅ Password reset successful for user: ${user.email}`);
+
+        return { message: 'Пароль успешно изменён' };
+    }
+
 }

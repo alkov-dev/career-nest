@@ -1,5 +1,5 @@
 import { Controller, Get, Param, NotFoundException, UseGuards, Patch, Body, Req } from '@nestjs/common';
-import { CandidateService } from './candidate.servise';
+import { CandidateService } from './candidate.service';
 import {
     ApiTags,
     ApiOperation,
