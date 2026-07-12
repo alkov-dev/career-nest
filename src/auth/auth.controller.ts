@@ -21,6 +21,7 @@ import { LoginDto, LoginResponseDto, RefreshResponseDto, RegisterDto, RegisterRe
 import { User, EmployerProfile, JobHistory } from '@prisma/client';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
+import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
 
 
 @ApiTags('Auth')
@@ -31,7 +32,7 @@ export class AuthController {
 
 
     @Public()
-    @Post('register')
+    @Post('candidate-register')
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({ summary: 'Регистрация (отправляет email)' })
     @ApiResponse({ status: 409, description: 'Email уже занят' })
@@ -48,7 +49,21 @@ export class AuthController {
         };
     }
 
-
+    @Public()
+    @Post('company-register')
+    @ApiOperation({ summary: 'Регистрация новой компании с администратором' })
+    @ApiResponse({
+        status: 201,
+        description: 'Компания и администратор успешно созданы',
+        type: RegisterCompanyResponseDto,
+    })
+    @ApiResponse({
+        status: 409,
+        description: 'Пользователь с таким email уже зарегистрирован',
+    })
+    async companyRegistration(@Body() dto: RegisterCompanyDto, @Res({ passthrough: true }) res: RegisterCompanyResponseDto) {
+        return this.authService.companyRegistration(dto);
+    }
 
     @Public()
     @Get('confirm-email')

@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { CandidateModule } from './candidate-profiles/candidate.module';
 import { EmployerModule } from './employer-profiles/emloyer.module';
 import { EmailModule } from './email/email.module';
+import { EmailQueueModule } from './email-queue/email-queue.module';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { EmailModule } from './email/email.module';
     AuthModule,
     CandidateModule,
     EmployerModule,
-    EmailModule
+    EmailModule,
+    EmailQueueModule,
   ],
   controllers: [],
   providers: [],

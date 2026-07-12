@@ -1,10 +1,10 @@
-// src/auth/auth.service.ts
 import {
     Injectable,
     UnauthorizedException,
     ConflictException,
     Logger,
     BadRequestException,
+    InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +20,7 @@ import { EmailService } from '@/email/email.service';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { UserStatus, UserRole } from '@/shared/enums/enums';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
+import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
 
 @Injectable()
 export class AuthService {
@@ -48,36 +49,32 @@ export class AuthService {
         const emailConfirmToken = crypto.randomBytes(32).toString('hex');
         const emailConfirmExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
 
-        const user = await this.prisma.user.create({
-            data: {
-                email: dto.email.toLowerCase(),
-                passwordHash,
-                role: dto.role || UserRole.CANDIDATE,
-                status: 'pending',
-                emailConfirmToken,
-                emailConfirmExpires,
-            },
-        });
-
-        if (user.role === UserRole.CANDIDATE) {
-            await this.prisma.candidateProfile.create({
+        const user = await this.prisma.$transaction(async (tx) => {
+            const createdUser = await tx.user.create({
                 data: {
-                    userId: user.id,
-                    fullName: dto.fullName,
+                    email: dto.email.toLowerCase(),
+                    passwordHash,
+                    firstName: dto.firstName,
+                    lastName: dto.lastName,
+                    role: dto.role || UserRole.CANDIDATE,
+                    status: UserStatus.PENDING,
+                    emailConfirmToken,
+                    emailConfirmExpires,
+                },
+            });
+
+            await tx.candidateProfile.create({
+                data: {
+                    userId: createdUser.id,
                     city: dto.city,
                     isActive: true,
                 },
             });
-        } else if (user.role === UserRole.EMPLOYER) {
-            await this.prisma.employerProfile.create({
-                data: {
-                    userId: user.id,
-                    positionInCompany: dto.fullName,
-                },
-            });
-        }
 
-        // Отправляем email с подтверждением
+            return createdUser;
+        });
+
+
         await this.emailService.sendConfirmationEmail(user.email, emailConfirmToken);
 
         this.logger.log(`✅ User registered: ${user.email} (pending confirmation)`);
@@ -171,7 +168,6 @@ export class AuthService {
 
         this.logger.log(`✅ User logged in: ${user.email}`);
 
-
         return this.generateTokens(user);
     }
 
@@ -208,7 +204,6 @@ export class AuthService {
     }
 
     async logout(userId: number): Promise<void> {
-        // В production: добавить токен в blacklist (Redis)
         this.logger.log(`👋 User logged out: ${userId}`);
     }
 
@@ -344,8 +339,6 @@ export class AuthService {
 
         await this.emailService.sendPasswordResetEmail(user.email, passwordResetToken);
 
-        this.logger.log(`✅ Password reset email sent to: ${user.email}`);
-
         return { message: 'Если пользователь с таким email существует, письмо отправлено' };
     }
 
@@ -365,10 +358,8 @@ export class AuthService {
             throw new BadRequestException('Недействительный или истёкший токен');
         }
 
-        // Хешируем новый пароль
         const passwordHash = await bcrypt.hash(dto.password, 10);
 
-        // Обновляем пароль и очищаем токен
         await this.prisma.user.update({
             where: { id: user.id },
             data: {
@@ -381,6 +372,87 @@ export class AuthService {
         this.logger.log(`✅ Password reset successful for user: ${user.email}`);
 
         return { message: 'Пароль успешно изменён' };
+    }
+
+    async companyRegistration(
+        dto: RegisterCompanyDto,
+    ): Promise<RegisterCompanyResponseDto> {
+
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
+
+        if (existingUser) {
+            throw new ConflictException('Пользователь с таким email уже зарегистрирован');
+        }
+
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        const emailConfirmToken = crypto.randomBytes(32).toString('hex');
+        const emailConfirmExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
+
+
+        //User -> Company -> EmployerProfile 
+        try {
+            const result = await this.prisma.$transaction(async (tx) => {
+                const user = await tx.user.create({
+                    data: {
+                        email: dto.email,
+                        passwordHash,
+                        firstName: dto.firstName,
+                        lastName: dto.lastName,
+                        role: UserRole.ADMIN,
+                        status: UserStatus.PENDING,
+                        emailConfirmToken,
+                        emailConfirmExpires,
+                    },
+                });
+
+                const company = await tx.company.create({
+                    data: {
+                        name: dto.companyName,
+                        description: dto.description,
+                        size: dto.size,
+                        industry: dto.industry,
+                        values: dto.values,
+                        logoUrl: dto.logoUrl,
+                        website: dto.website,
+                        headOffice: dto.headOffice,
+                        linkedinUrl: dto.linkedin,
+                        benefits: dto.benefits,
+                        corporateCulture: dto.corporateCulture,
+                        employeeCount: dto.employeeCount,
+                    },
+                });
+
+                await tx.employerProfile.create({
+                    data: {
+                        userId: user.id,
+                        companyId: company.id,
+                        positionInCompany: dto.positionInCompany || 'Administrator',
+                    },
+                });
+
+                await this.emailService.sendConfirmationEmail(user.email, emailConfirmToken);
+
+                this.logger.log(`✅ Company registered: ${user.email} (pending confirmation)`);
+
+                return {
+                    userId: user.id.toString(),
+                    companyId: company.id.toString(),
+                    email: user.email,
+                };
+            });
+
+
+            return {
+                ...result,
+                message: 'Компания и администратор успешно созданы',
+            };
+        } catch (error) {
+            throw new InternalServerErrorException(
+                'Не удалось зарегистрировать компанию: ' + + (error as Error).message,
+            );
+        }
     }
 
 }

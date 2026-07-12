@@ -129,15 +129,18 @@ export class RegisterDto {
     @MaxLength(50)
     password!: string;
 
-    @ApiProperty({
-        description: 'Полное имя пользователя',
-        example: 'Иван Иванов',
-        required: true,
-    })
+    @ApiProperty({ example: 'Иван' })
     @IsString()
-    @MinLength(2)
-    @MaxLength(50)
-    fullName!: string;
+    @MinLength(1)
+    @MaxLength(100)
+    firstName!: string;
+
+    @ApiPropertyOptional({ example: 'Петров' })
+    @IsString()
+    @IsOptional()
+    @MinLength(1)
+    @MaxLength(100)
+    lastName!: string;
 
     @ApiProperty({
         description: 'Роль пользователя',
@@ -178,3 +181,6 @@ export class LoginDto {
     @MinLength(6)
     password!: string;
 }
+
+
+

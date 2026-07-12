@@ -9,6 +9,8 @@ datasource db {
 
 model User {
   id               BigInt            @id @default(autoincrement())
+  firstName        String            @map("first_name")
+  lastName         String            @map("last_name")
   email            String            @unique @db.VarChar(255)
   passwordHash     String            @map("password_hash")
   role             String            @default("candidate") @db.VarChar(20)
@@ -89,18 +91,23 @@ model EmployerProfile {
 }
 
 model Company {
-  id          BigInt    @id @default(autoincrement())
-  name        String
-  description String?
-  size        String?   @db.VarChar(50)
-  industry    String?
-  values      String?
-  logoUrl     String?   @map("logo_url")
-  website     String?
-  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-  jobs        Job[]
+  id               BigInt    @id @default(autoincrement())
+  name             String
+  description      String?
+  size             String?   @db.VarChar(50)
+  industry         String?
+  values           String?
+  logoUrl          String?   @map("logo_url")
+  website          String?
+  headOffice       String?   @map("head_office")
+  linkedinUrl      String?   @map("linkedin_url")
+  benefits         String?
+  corporateCulture String?   @map("corporate_culture")
+  employeeCount    Int?      @map("employee_count")
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  jobs             Job[]
 
   @@index([name(ops: raw("gin_trgm_ops"))], map: "idx_companies_name", type: Gin)
   @@map("companies")
