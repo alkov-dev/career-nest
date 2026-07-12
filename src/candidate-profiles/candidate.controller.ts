@@ -16,6 +16,7 @@ export class CandidateController {
     constructor(private candidateService: CandidateService) { }
 
     @Get('all')
+    @UseGuards(JwtAuthGuard)
     @Public()
     @ApiOperation({ summary: 'Получить список всех кандидатов' })
     @ApiResponse({
@@ -28,7 +29,7 @@ export class CandidateController {
     }
 
     @Get(':id')
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Получить профиль кандидата по ID' })
     @ApiParam({ name: 'id', description: 'ID кандидата', example: '1' })
     @ApiResponse({

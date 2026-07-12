@@ -10,10 +10,12 @@ import {
     Request,
     UnauthorizedException,
     Query,
+    UseInterceptors,
+    UploadedFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
-
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
@@ -22,13 +24,19 @@ import { User, EmployerProfile, JobHistory } from '@prisma/client';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
 import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { MinioService } from '@/minio/minio.service';
+import { Mode } from '@/shared/enums/enums';
 
 
 @ApiTags('Auth')
 @ApiBearerAuth('access-token')
 @Controller('auth')
 export class AuthController {
-    constructor(private authService: AuthService) { }
+    constructor(
+        private authService: AuthService,
+        private readonly minioService: MinioService,
+    ) { }
 
 
     @Public()
@@ -51,6 +59,20 @@ export class AuthController {
 
     @Public()
     @Post('company-register')
+    @UseInterceptors(
+        FileInterceptor('logoUrl', {
+            storage: memoryStorage(),
+            limits: {
+                fileSize: 5 * 1024 * 1024, // 5MB
+            },
+            fileFilter: (req, file, callback) => {
+                if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+                    return callback(new Error('Только изображения (JPG, PNG, GIF, WebP)'), false);
+                }
+                callback(null, true);
+            },
+        }),
+    )
     @ApiOperation({ summary: 'Регистрация новой компании с администратором' })
     @ApiResponse({
         status: 201,
@@ -61,7 +83,21 @@ export class AuthController {
         status: 409,
         description: 'Пользователь с таким email уже зарегистрирован',
     })
-    async companyRegistration(@Body() dto: RegisterCompanyDto, @Res({ passthrough: true }) res: RegisterCompanyResponseDto) {
+    async companyRegistration(
+        @Body() dto: RegisterCompanyDto,
+        @Res({ passthrough: true }) res: RegisterCompanyResponseDto,
+        @UploadedFile() logo?: Express.Multer.File,
+    ) {
+        let logoUrl = '';
+
+        if (logo) {
+            try {
+                logoUrl = await this.minioService.uploadFile(logo, 'company-logos');
+            } catch (error) {
+                throw new Error('Не удалось загрузить логотип');
+            }
+        }
+        dto.logoUrl = logoUrl
         return this.authService.companyRegistration(dto);
     }
 
@@ -128,9 +164,6 @@ export class AuthController {
         const tokens = await this.authService.login(dto);
         this.authService.setTokensInCookie(res, tokens.accessToken, tokens.refreshToken);
 
-        // ⚠️ Токены в body ТОЛЬКО для development для сваггера
-        const isDev = process.env.NODE_ENV !== 'production';
-
         const returnUserData = {
             email: tokens.user.email,
             role: tokens.user.role,
@@ -138,7 +171,7 @@ export class AuthController {
         }
         tokens.user = returnUserData as User;
 
-        if (isDev) {
+        if (process.env.NODE_ENV !== Mode.PRODUCTION) {
             return {
                 user: tokens.user,
                 accessToken: tokens.accessToken,
@@ -174,7 +207,6 @@ export class AuthController {
 
 
 
-    @Public()
     @Post('logout')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Выход из системы' })

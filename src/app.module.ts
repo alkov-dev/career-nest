@@ -6,6 +6,7 @@ import { CandidateModule } from './candidate-profiles/candidate.module';
 import { EmployerModule } from './employer-profiles/emloyer.module';
 import { EmailModule } from './email/email.module';
 import { EmailQueueModule } from './email-queue/email-queue.module';
+import { MinioModule } from './minio/minio.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { EmailQueueModule } from './email-queue/email-queue.module';
     EmployerModule,
     EmailModule,
     EmailQueueModule,
+    MinioModule
   ],
   controllers: [],
   providers: [],

@@ -14,3 +14,8 @@ export enum EmailType {
     PASSWORD_RESET = 'password-reset',
     NOTIFICATION = 'notification',
 }
+
+export enum Mode {
+    DEVELOPING = 'developing',
+    PRODUCTION = 'production'
+}

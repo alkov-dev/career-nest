@@ -17,7 +17,7 @@ export class EmployerController {
 
     @Get('all')
     @Public()
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Получить список всех работодателей' })
     @ApiResponse({
         status: 200,
@@ -29,7 +29,7 @@ export class EmployerController {
     }
 
     @Get(':id')
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Получить профиль работодателя по ID' })
     @ApiParam({ name: 'id', description: 'ID работодателя', example: '1' })
     @ApiResponse({
@@ -47,7 +47,7 @@ export class EmployerController {
 
 
     @Patch(':id')
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Обновить профиль работодателя' })
     @ApiResponse({
         status: 200,
