@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding ON kb_chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_metadata ON kb_chunks USING gin (metadata jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_hash ON kb_chunks(hash);
-CREATE INDEX IF NOT EXISTS idx_kb_chunks_category ON kb_chunks USING gin ((metadata->>'category'));
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_category ON kb_chunks USING gin ((metadata->>'category') gin_trgm_ops);
 
 -- Уведомления
 CREATE TABLE IF NOT EXISTS notifications (

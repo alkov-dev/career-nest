@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_experiences_profile_id ON experiences(profile_id)
 CREATE INDEX IF NOT EXISTS idx_experiences_dates ON experiences(profile_id, start_date, end_date);
 
 -- Добавляем FK на cv_upload_id в candidate_profiles (если ещё не было)
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -57,6 +58,21 @@ BEGIN
         FOREIGN KEY (cv_upload_id) REFERENCES cv_uploads(id) ON DELETE SET NULL;
     END IF;
 END $$;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_candidate_profiles_cv_upload'
+    ) THEN
+        ALTER TABLE candidate_profiles 
+        ADD CONSTRAINT fk_candidate_profiles_cv_upload 
+        FOREIGN KEY (cv_upload_id) REFERENCES cv_uploads(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+-- +goose StatementEnd
 
 -- AI-оценка резюме (базовый детальный скор после Review)
 CREATE TABLE IF NOT EXISTS cv_analyses (
