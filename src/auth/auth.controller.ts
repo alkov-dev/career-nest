@@ -60,7 +60,7 @@ export class AuthController {
     @Public()
     @Post('company-register')
     @UseInterceptors(
-        FileInterceptor('logoUrl', {
+        FileInterceptor('logo', {
             storage: memoryStorage(),
             limits: {
                 fileSize: 5 * 1024 * 1024, // 5MB
@@ -98,6 +98,7 @@ export class AuthController {
             }
         }
         dto.logoUrl = logoUrl
+
         return this.authService.companyRegistration(dto);
     }
 
@@ -214,7 +215,6 @@ export class AuthController {
         this.authService.clearTokensFromCookie(res);
         return { message: 'Успешный выход' };
     }
-
 
 
     @Get('me')

@@ -144,8 +144,9 @@ export class RegisterDto {
 
     @ApiProperty({
         description: 'Роль пользователя',
-        example: 'candidate, employer',
+        example: 'candidate',
         required: false,
+        enum: UserRole
     })
     @IsOptional()
     @IsString()
@@ -159,6 +160,11 @@ export class RegisterDto {
     @IsOptional()
     @IsString()
     city?: string;
+
+    @ApiPropertyOptional({ example: 'Информация о себе' })
+    @IsString()
+    @MaxLength(255)
+    summary?: string | null;
 }
 
 

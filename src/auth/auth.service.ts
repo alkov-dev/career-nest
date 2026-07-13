@@ -68,6 +68,7 @@ export class AuthService {
                     userId: createdUser.id,
                     city: dto.city,
                     isActive: true,
+                    summary: dto.summary
                 },
             });
 

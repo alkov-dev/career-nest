@@ -22,6 +22,17 @@ export class MinioService implements OnModuleInit {
 
     async onModuleInit() {
         await this.ensureBucketExists();
+        await this.verifyConnection();
+    }
+
+    private async verifyConnection() {
+        try {
+            await this.minioClient.listBuckets();
+            this.logger.log('✅ MinIO connection verified');
+        } catch (error) {
+            this.logger.error(`❌ MinIO connection failed`);
+            throw error;
+        }
     }
 
     private async ensureBucketExists() {

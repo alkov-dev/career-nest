@@ -30,7 +30,6 @@ export class RegisterCompanyDto {
     @ApiPropertyOptional({ example: 'Петров' })
     @IsString()
     @IsOptional()
-    @MinLength(1)
     @MaxLength(100)
     lastName!: string;
 
@@ -47,7 +46,15 @@ export class RegisterCompanyDto {
     @MaxLength(255)
     companyName!: string;
 
-    @ApiPropertyOptional({ example: 'https://example.com/logo.png' })
+    @ApiPropertyOptional({
+        description: 'Логотип компании (файл изображения)',
+        type: 'string',
+        format: 'binary',
+    })
+    @IsOptional()
+    logo?: any;
+
+    @ApiPropertyOptional({ example: 'https://example.com/image.jpg' })
     @IsOptional()
     @IsUrl()
     logoUrl?: string;
@@ -69,11 +76,11 @@ export class RegisterCompanyDto {
     @MaxLength(50)
     size?: string;
 
-    @ApiPropertyOptional({ example: 75 })
+    @ApiPropertyOptional({ example: '50-100' })
     @IsOptional()
-    @IsInt()
-    @Min(1)
-    employeeCount?: number;
+    @IsString()
+    @MaxLength(50)
+    employeeCount?: string;
 
     @ApiPropertyOptional({ example: 'Москва' })
     @IsOptional()
