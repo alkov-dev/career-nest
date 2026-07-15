@@ -5,6 +5,8 @@ import {
     Logger,
     BadRequestException,
     InternalServerErrorException,
+    ForbiddenException,
+    NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -20,7 +22,7 @@ import { EmailService } from '@/email/email.service';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { UserStatus, UserRole } from '@/shared/enums/enums';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
-import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
+import { CreateHrUserDto, RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
 
 @Injectable()
 export class AuthService {
@@ -454,6 +456,79 @@ export class AuthService {
                 'Не удалось зарегистрировать компанию: ' + + (error as Error).message,
             );
         }
+    }
+
+    private parseBigInt(value: string, fieldName: string): bigint {
+        try {
+            return BigInt(value);
+        } catch (error) {
+            throw new BadRequestException(`Некорректный формат ${fieldName}. Ожидалось число.`);
+        }
+    }
+
+    async createHrUser(dto: CreateHrUserDto, adminId: bigint) {
+        const companyIdBigInt = this.parseBigInt(dto.companyId, 'companyId');
+
+        const company = await this.prisma.company.findUnique({
+            where: { id: companyIdBigInt },
+        });
+
+        if (!company) {
+            throw new NotFoundException(`Компания с ID ${dto.companyId} не найдена в системе`);
+        }
+
+        const admin = await this.prisma.user.findUnique({
+            where: { id: adminId },
+        });
+
+        if (!admin) {
+            throw new ForbiddenException('Администратор не найден');
+        }
+
+        if (admin.status !== UserStatus.ACTIVE) {
+            throw new ForbiddenException('Ваш аккаунт неактивен');
+        }
+
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
+
+        if (existingUser) {
+            throw new ConflictException('Пользователь с таким email уже существует');
+        }
+
+        const tempPassword = crypto.randomUUID().slice(0, 8);
+        const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+        const inviteToken = crypto.randomUUID();
+        const inviteExpires = new Date();
+        inviteExpires.setDate(inviteExpires.getDate() + 7);
+
+        return this.prisma.$transaction(async (tx) => {
+
+            const user = await tx.user.create({
+                data: {
+                    email: dto.email,
+                    firstName: dto.firstName,
+                    lastName: dto.lastName,
+                    role: UserRole.HR_MANAGER,
+                    status: UserStatus.ACTIVE,
+                    passwordHash,
+                    passwordResetToken: inviteToken,
+                    passwordResetExpires: inviteExpires,
+                },
+            });
+
+            await tx.employerProfile.create({
+                data: {
+                    userId: user.id,
+                    companyId: companyIdBigInt,
+                    positionInCompany: 'HR-менеджер',
+                },
+            });
+
+            return user;
+        });
     }
 
 }

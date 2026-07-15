@@ -7,8 +7,11 @@ import {
     IsUrl,
     IsInt,
     Min,
+    IsNotEmpty,
+    IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '../enums/enums';
 
 export class RegisterCompanyDto {
     // === Администратор компании ===
@@ -127,4 +130,38 @@ export class RegisterCompanyResponseDto {
 
     @ApiProperty()
     message!: string;
+}
+
+export class CreateHrUserDto {
+    @ApiProperty({
+        example: 'hr_manager@company.com',
+        description: 'Корпоративный email нового сотрудника',
+    })
+    @IsEmail({}, { message: 'Некорректный формат email' })
+    @IsNotEmpty({ message: 'Email обязателен для заполнения' })
+    email!: string;
+
+    @ApiProperty({
+        example: 'Иван',
+        description: 'Имя сотрудника',
+    })
+    @IsString({ message: 'Имя должно быть строкой' })
+    @IsNotEmpty({ message: 'Имя обязательно для заполнения' })
+    firstName!: string;
+
+    @ApiProperty({
+        example: 'Иванов',
+        description: 'Фамилия сотрудника',
+    })
+    @IsString({ message: 'Фамилия должна быть строкой' })
+    @IsNotEmpty({ message: 'Фамилия обязательна для заполнения' })
+    lastName!: string;
+
+    @ApiProperty({
+        example: '1234567890123',
+        description: 'ID компании. Передается как строка, так как в Prisma используется тип BigInt',
+    })
+    @IsString({ message: 'ID компании должен быть строкой' })
+    @IsNotEmpty({ message: 'ID компании обязателен для заполнения' })
+    companyId!: string;
 }

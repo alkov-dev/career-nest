@@ -12,6 +12,7 @@ import {
     Query,
     UseInterceptors,
     UploadedFile,
+    Req,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -23,10 +24,11 @@ import { LoginDto, LoginResponseDto, RefreshResponseDto, RegisterDto, RegisterRe
 import { User, EmployerProfile, JobHistory } from '@prisma/client';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
-import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
+import { CreateHrUserDto, RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MinioService } from '@/minio/minio.service';
-import { Mode } from '@/shared/enums/enums';
+import { Mode, UserRole } from '@/shared/enums/enums';
+import { Roles } from './decorators/roles.decorator';
 
 
 @ApiTags('Auth')
@@ -227,4 +229,15 @@ export class AuthController {
     async getProfile(@Request() req): Promise<any> {
         return await this.authService.aboutMe(req.user.id);
     }
+
+
+
+    @Post('create-hr')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Приглашение hr-менеджера' })
+    // @Roles(UserRole.ADMIN)
+    create(@Body() createDto: CreateHrUserDto, @Request() req) {
+        return this.authService.createHrUser(createDto, BigInt(req.user.id));
+    }
+
 }
