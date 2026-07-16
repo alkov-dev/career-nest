@@ -208,18 +208,18 @@ model Job {
   salaryMax         Int?                   @map("salary_max")
   currency          String?                @default("RUB") @db.VarChar(10)
   expYearsMin       Int?                   @default(0) @map("exp_years_min")
-  remoteOption      String                @map("remote_option")
+  remoteOption      String                 @map("remote_option")
   location          String?
   locationEmbedding Unsupported("vector")? @map("location_embedding")
   embedding         Unsupported("vector")?
   department        String?
   responsibilities  String[]
-  niceToHave        String[]
+  niceToHave        String[]               @map("nice_to_have") 
   skills            String[]
   experienceLevel   String                 @map("experience_level") @db.VarChar(50)
   employmentType    String?                @map("employment_type") @db.VarChar(50)
   benefits          String[]
-  applicationCount  Int?                   @default(0) @map("applicant_count")
+  applicationCount  Int?                   @default(0) @map("application_count")
   aiMatchCount      Int?                   @default(0) @map("ai_match_count")
 
   createdAt         DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
