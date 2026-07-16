@@ -9,6 +9,7 @@ import { EmailQueueModule } from './email-queue/email-queue.module';
 import { MinioModule } from './minio/minio.module';
 import { UsersModule } from './users/users.module';
 import { JobsModule } from './jobs/jobs.module';
+import { OpenAiModule } from './openai/openai.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { JobsModule } from './jobs/jobs.module';
     EmailModule,
     EmailQueueModule,
     MinioModule,
-    JobsModule
+    JobsModule,
+    OpenAiModule,
   ],
   controllers: [],
   providers: [],

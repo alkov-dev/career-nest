@@ -11,6 +11,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/src/main.js",
     "node dist/main": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -19,10 +20,10 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "npx prisma generate",
-    "db:migrate:up": "goose -dir ./migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" up",
-    "db:migrate:down": "goose -dir ./migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" down",
-    "db:migrate:status": "goose -dir ./migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" status",
-    "db:migrate:create": "goose -dir ./migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" create"
+    "db:migrate:up": "goose -dir ./prisma/migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" up",
+    "db:migrate:down": "goose -dir ./prisma/migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" down",
+    "db:migrate:status": "goose -dir ./prisma/migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" status",
+    "db:migrate:create": "goose -dir ./prisma/migrations postgres \"user=postgres password=postgres dbname=career_db sslmode=disable host=localhost port=5432\" create"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
@@ -43,6 +44,7 @@
     "minio": "^8.0.7",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
+    "openai": "^6.47.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

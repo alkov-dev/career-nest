@@ -1,15 +1,16 @@
 stages:
   - deploy
 
-deploy:
+deploy_dev:
   stage: deploy
-  tags:
-    - karer-deploy
   only:
     - dev-backend
 
   script:
-    - cd /opt/karer/back-karer
-    - git pull origin dev-backend
-    - docker compose build
-    - docker compose up -d
+    - ssh root@185.170.196.241 "
+        cd /opt/karer/back-karer &&
+        git fetch origin &&
+        git reset --hard origin/dev-backend &&
+        docker compose build &&
+        docker compose up -d
+      "
