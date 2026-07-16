@@ -12,7 +12,6 @@ import {
     Query,
     UseInterceptors,
     UploadedFile,
-    Req,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -21,14 +20,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { LoginDto, LoginResponseDto, RefreshResponseDto, RegisterDto, RegisterResponseDto, UserResponseDto } from '@/shared/dto/auth.dto';
-import { User, EmployerProfile, JobHistory } from '@prisma/client';
+import { User } from '@prisma/client';
 import { RequestPasswordResetDto } from '@/shared/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '@/shared/dto/reset-password.dto';
-import { CreateHrUserDto, RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
+import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/register-company.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MinioService } from '@/minio/minio.service';
-import { Mode, UserRole } from '@/shared/enums/enums';
-import { Roles } from './decorators/roles.decorator';
+import { Mode } from '@/shared/enums/enums';
+
 
 
 @ApiTags('Auth')
@@ -230,14 +229,5 @@ export class AuthController {
         return await this.authService.aboutMe(req.user.id);
     }
 
-
-
-    @Post('create-hr')
-    @UseGuards(JwtAuthGuard)
-    @ApiOperation({ summary: 'Приглашение hr-менеджера' })
-    // @Roles(UserRole.ADMIN)
-    create(@Body() createDto: CreateHrUserDto, @Request() req) {
-        return this.authService.createHrUser(createDto, BigInt(req.user.id));
-    }
 
 }

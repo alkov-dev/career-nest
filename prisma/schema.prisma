@@ -202,19 +202,30 @@ model Job {
   companyId         BigInt                 @map("company_id")
   title             String
   description       String?
-  requirements      String?
-  status            String?                @default("draft") @db.VarChar(20)
+  requirements      String[]              
+  status            String                 @default("draft") @db.VarChar(20)
   salaryMin         Int?                   @map("salary_min")
   salaryMax         Int?                   @map("salary_max")
   currency          String?                @default("RUB") @db.VarChar(10)
   expYearsMin       Int?                   @default(0) @map("exp_years_min")
-  remoteOk          Boolean?               @default(false) @map("remote_ok")
+  remoteOption      String                @map("remote_option")
   location          String?
   locationEmbedding Unsupported("vector")? @map("location_embedding")
   embedding         Unsupported("vector")?
+  department        String?
+  responsibilities  String[]
+  niceToHave        String[]
+  skills            String[]
+  experienceLevel   String                 @map("experience_level") @db.VarChar(50)
+  employmentType    String?                @map("employment_type") @db.VarChar(50)
+  benefits          String[]
+  applicationCount  Int?                   @default(0) @map("applicant_count")
+  aiMatchCount      Int?                   @default(0) @map("ai_match_count")
+
   createdAt         DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  
   applications      Application[]
   coverLetters      CoverLetter[]
   jobHistory        JobHistory[]
@@ -227,17 +238,23 @@ model Job {
   @@index([companyId], map: "idx_jobs_company_id")
   @@index([status], map: "idx_jobs_status")
   @@index([location], map: "idx_jobs_location")
+  @@index([remoteOption], map: "idx_jobs_remote_option")          // Новый индекс
+  @@index([experienceLevel], map: "idx_jobs_experience_level")    // Новый индекс
   @@map("jobs")
 }
 
 model JobSkill {
-  jobId     BigInt    @map("job_id")
-  skillId   BigInt    @map("skill_id")
-  type      String    @default("nice_to_have") @db.VarChar(20)
-  weight    Decimal?  @default(1.0) @db.Decimal(3, 2)
-  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
-  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  skill     Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jobId      BigInt     @map("job_id")
+  skillId    BigInt     @map("skill_id")
+  type       String     @default("nice_to_have") @db.VarChar(20)
+  weight     Decimal?   @default(1.0) @db.Decimal(3, 2)
+  createdAt  DateTime?  @default(now()) @map("created_at") @db.Timestamptz(6)
+  job        Job        @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skill      Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  source     String?    @default("manual") @db.VarChar(30)
+  confidence Decimal?   @db.Decimal(3, 2)
+  reason     String?    @db.Text
 
   @@id([jobId, skillId])
   @@index([jobId], map: "idx_job_skills_job_id")

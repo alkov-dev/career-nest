@@ -32,4 +32,5 @@ export class EmailService {
 
         this.logger.log(`📨 Password reset email queued for ${email}`);
     }
+
 }

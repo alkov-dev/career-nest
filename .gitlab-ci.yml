@@ -1,0 +1,15 @@
+stages:
+  - deploy
+
+deploy:
+  stage: deploy
+  tags:
+    - karer-deploy
+  only:
+    - dev-backend
+
+  script:
+    - cd /opt/karer/back-karer
+    - git pull origin dev-backend
+    - docker compose build
+    - docker compose up -d
