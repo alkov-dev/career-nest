@@ -1,8 +1,10 @@
 stages:
   - deploy
 
-deploy_dev:
+deploy_backend:
   stage: deploy
+  tags:
+    - docker
   only:
     - dev-backend
 
@@ -13,4 +15,10 @@ deploy_dev:
         git reset --hard origin/dev-backend &&
         docker compose build &&
         docker compose up -d
+      "
+
+  after_script:
+    - ssh root@185.170.196.241 "
+        cd /opt/karer/back-karer &&
+        docker compose ps
       "
