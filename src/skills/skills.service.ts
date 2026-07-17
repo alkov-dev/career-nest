@@ -1,7 +1,7 @@
 // src/skills/skills.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { SKILL_EXTRACTION_PROMPT, SKILL_EXTRACTION_SCHEMA } from '@/ai/prompts/skill-extraction.prompt';
+import { SKILL_EXTRACTION_PROMPT, SKILL_EXTRACTION_SCHEMA } from '@/ai/prompts/create-skills/skill-extraction.prompt';
 import { OpenAiService } from '@/openai/openai.service';
 
 @Injectable()

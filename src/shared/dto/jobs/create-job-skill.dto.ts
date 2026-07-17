@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsNumber, IsIn, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn, Min, Max, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { JobSkillSource, JobSkillType } from '@/shared/enums/enums';
 
 export class CreateJobSkillDto {
     @ApiPropertyOptional({
@@ -17,13 +18,13 @@ export class CreateJobSkillDto {
     @IsString()
     name!: string;
 
+    @IsEnum(JobSkillType)
     @ApiProperty({
         description: 'Тип навыка: обязательный или желательный',
-        enum: ['required', 'nice_to_have'],
-        example: 'required',
+        enum: JobSkillType,
+        example: JobSkillType.REQUIRED,
     })
-    @IsIn(['required', 'nice_to_have'])
-    type!: 'required' | 'nice_to_have';
+    type!: JobSkillType;
 
     @ApiPropertyOptional({
         description: 'Причина добавления навыка (например, откуда он был извлечен)',
@@ -47,11 +48,10 @@ export class CreateJobSkillDto {
 
     @ApiPropertyOptional({
         description: 'Источник навыка: добавлен вручную, предложен ИИ или подтвержден после предложения ИИ',
-        enum: ['manual', 'ai_suggested', 'ai_accepted'],
-        example: 'manual',
-        default: 'manual',
+        enum: JobSkillSource,
+        example: JobSkillSource.MANUAL,
+        default: JobSkillSource.MANUAL,
     })
     @IsOptional()
-    @IsIn(['manual', 'ai_suggested', 'ai_accepted'])
-    source?: 'manual' | 'ai_suggested' | 'ai_accepted';
+    source?: JobSkillSource;
 }

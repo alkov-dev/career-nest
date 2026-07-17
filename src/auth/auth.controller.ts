@@ -27,6 +27,7 @@ import { RegisterCompanyDto, RegisterCompanyResponseDto } from '@/shared/dto/reg
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MinioService } from '@/minio/minio.service';
 import { Mode } from '@/shared/enums/enums';
+import { RolesGuard } from './guards/roles.guard';
 
 
 
@@ -219,7 +220,7 @@ export class AuthController {
 
 
     @Get('me')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Получить профиль текущего пользователя' })
     @ApiResponse({
         status: 201,

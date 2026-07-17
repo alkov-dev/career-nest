@@ -9,6 +9,9 @@ import {
 import { EmployerProfileResponseDto, UpdateEmployerDto } from '../shared/dto/emloyer-profile.dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { Public } from '@/auth/decorators/public.decorator';
+import { RolesGuard } from '@/auth/guards/roles.guard';
+import { Roles } from '@/auth/decorators/roles.decorator';
+import { UserRole } from '@/shared/enums/enums';
 
 @ApiTags('Employer Profiles')
 @Controller('employers')
@@ -17,7 +20,8 @@ export class EmployerController {
 
     @Get('all')
     @Public()
-    @UseGuards(JwtAuthGuard)
+    @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Получить список всех работодателей' })
     @ApiResponse({
         status: 200,
@@ -29,7 +33,8 @@ export class EmployerController {
     }
 
     @Get(':id')
-    @UseGuards(JwtAuthGuard)
+    @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Получить профиль работодателя по ID' })
     @ApiParam({ name: 'id', description: 'ID работодателя', example: '1' })
     @ApiResponse({
@@ -47,7 +52,8 @@ export class EmployerController {
 
 
     @Patch(':id')
-    @UseGuards(JwtAuthGuard)
+    @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Обновить профиль работодателя' })
     @ApiResponse({
         status: 200,

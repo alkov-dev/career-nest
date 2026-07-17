@@ -1,5 +1,6 @@
 import { Expose, Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { JobSkillSource, JobSkillType } from '@/shared/enums/enums';
 
 export class JobSkillResponseDto {
     @ApiProperty({ description: 'ID навыка из справочника', example: 42 })
@@ -12,11 +13,11 @@ export class JobSkillResponseDto {
 
     @ApiProperty({
         description: 'Тип навыка: обязательный или желательный',
-        enum: ['required', 'nice_to_have'],
-        example: 'required'
+        enum: JobSkillType,
+        example: JobSkillType.REQUIRED
     })
     @Expose()
-    type!: 'required' | 'nice_to_have';
+    type!: JobSkillType;
 
     @ApiPropertyOptional({
         description: 'Причина добавления навыка',
@@ -31,11 +32,11 @@ export class JobSkillResponseDto {
 
     @ApiPropertyOptional({
         description: 'Источник навыка',
-        enum: ['manual', 'ai_suggested', 'ai_accepted'],
-        example: 'manual'
+        enum: JobSkillSource,
+        example: JobSkillSource.MANUAL
     })
     @Expose()
-    source?: 'manual' | 'ai_suggested' | 'ai_accepted';
+    source?: JobSkillSource;
 }
 
 export class JobPostingResponseDto {

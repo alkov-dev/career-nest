@@ -9,6 +9,7 @@ import {
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { Public } from '@/auth/decorators/public.decorator';
 import { CandidateResponseDto, UpdateCandidateDto } from '@/shared/dto/candidate-profile.dto';
+import { RolesGuard } from '@/auth/guards/roles.guard';
 
 @ApiTags('Candidate Profiles')
 @Controller('candidates')
@@ -16,7 +17,7 @@ export class CandidateController {
     constructor(private candidateService: CandidateService) { }
 
     @Get('all')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Public()
     @ApiOperation({ summary: 'Получить список всех кандидатов' })
     @ApiResponse({
@@ -29,7 +30,7 @@ export class CandidateController {
     }
 
     @Get(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Получить профиль кандидата по ID' })
     @ApiParam({ name: 'id', description: 'ID кандидата', example: '1' })
     @ApiResponse({
@@ -47,7 +48,7 @@ export class CandidateController {
 
 
     @Patch(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Обновить профиль кандидата' })
     @ApiResponse({
         status: 200,

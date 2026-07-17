@@ -5,6 +5,7 @@ import { Body, Controller, Post, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateHrUserDto } from '@/shared/dto/register-company.dto';
+import { RolesGuard } from '@/auth/guards/roles.guard';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -16,7 +17,8 @@ export class UsersController {
 
 
     @Post('create-hr')
-    @UseGuards(JwtAuthGuard)
+    @Roles(UserRole.ADMIN)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @ApiOperation({ summary: 'Приглашение hr-менеджера' })
     @Roles(UserRole.ADMIN)
     create(@Body() createDto: CreateHrUserDto, @Request() req) {

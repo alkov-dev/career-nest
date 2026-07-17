@@ -1,14 +1,19 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { plainToInstance } from 'class-transformer';
 import { CreateJobDto } from '@/shared/dto/jobs/create-job.dto';
-import { JobPostingResponseDto } from '@/shared/dto/jobs/job-posting-response.dto';
 import { UpdateJobDto } from '@/shared/dto/jobs/update-job.dto';
+import { OpenAiService } from '@/openai/openai.service';
+import { SKILL_EXTRACTION_PROMPT, SKILL_EXTRACTION_SCHEMA } from '@/ai/prompts/create-skills/skill-extraction.prompt';
+import { JobSkillSource, JobSkillType } from '@/shared/enums/enums';
+
 
 
 @Injectable()
 export class JobsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private openAiService: OpenAiService,
+    ) { }
 
     async createJob(dto: CreateJobDto, currentUserId: bigint) {
         const employerProfile = await this.prisma.employerProfile.findUnique({
@@ -22,74 +27,66 @@ export class JobsService {
 
         const companyId = employerProfile.companyId;
 
+        const manualSkillsList = dto.jobSkills
+            ? dto.jobSkills.map(js => `- ${js.name} (тип: ${js.type})`).join('\n')
+            : 'Нет';
 
-        // 1. Проверяем, что пользователь имеет право создавать вакансии для этой компании
-        // (Здесь упрощенная проверка, адаптируйте под вашу логику ролей)
-        // const company = await this.prisma.company.findFirst({
-        //     where: {
-        //         id: companyId,
-        //         users: {
-        //             some: {
-        //                 id: currentUserId,
-        //                 status: 'active'
-        //             }
-        //         }
-        //     },
-        // });
-        // console.log("🚀 ~ company:", company);
+        const textToAnalyze = `
+            Название: ${dto.title}
+            Описание: ${dto.description}
+            Требования: ${dto.requirements?.join('; ') || 'Нет'}
+            Обязанности: ${dto.responsibilities?.join('; ') || 'Нет'}
+            Будет плюсом: ${dto.niceToHave?.join('; ') || 'Нет'}
+        `;
 
-        // if (!company) {
-        //     throw new ForbiddenException('У вас нет прав на создание вакансии для этой компании');
-        // }
+        const finalPrompt = SKILL_EXTRACTION_PROMPT
+            .replace('{manualSkills}', manualSkillsList)
+            .replace('{jobText}', textToAnalyze);
 
-        // 2. Обрабатываем навыки: находим или создаем их в справочнике
-        // const processedJobSkills = dto.jobSkills
-        //     ? await Promise.all(dto.jobSkills.map(async (js) => {
-        //         const cleanName = js.name.trim();
+        const aiResponse = await this.openAiService.extractJson(
+            finalPrompt,
+            '',
+            SKILL_EXTRACTION_SCHEMA
+        );
 
-        //         // UPSERT: если навык есть, берем его ID. Если нет, создаем.
-        //         // Если навык предложен ИИ, помечаем его как требующий проверки (needsReview)
-        //         const skill = await this.prisma.skill.upsert({
-        //             where: { name: cleanName },
-        //             update: {},
-        //             create: {
-        //                 name: cleanName,
-        //                 needsReview: js.source !== 'manual'
-        //             },
-        //         });
+        const canonicalizedSkills = aiResponse?.skills || [];
 
-        //         return {
-        //             skillId: skill.id,
-        //             type: js.type,
-        //             source: js.source || 'manual',
-        //             confidence: js.confidence ? Number(js.confidence) : null,
-        //             reason: js.reason || null,
-        //             // Автоматический расчет веса для алгоритма матчинга
-        //             weight: js.type === 'required' ? 1.5 : 0.5,
-        //         };
-        //     }))
-        //     : [];
+        const highConfidenceSkills = canonicalizedSkills.filter(
+            (skill: any) => skill.confidence >= 0.98
+        );
 
-        // const processedJobSkills: any[] = []; //заглушка потом надо удалить
-
-        // Временно создаем тестовые навыки
-
-
-        // 3. Атомарная транзакция создания вакансии и связей
         const createdJob = await this.prisma.$transaction(async (tx) => {
-            //временно
-            const testSkill1 = await tx.skill.upsert({
-                where: { name: 'Продуктовая стратегия' },
-                update: {},
-                create: { name: 'Продуктовая стратегия', category: 'other', needsReview: true },
-            });
-            //временно
-            const testSkill2 = await tx.skill.upsert({
-                where: { name: 'Аналитика' },
-                update: {},
-                create: { name: 'Аналитика', category: 'other', needsReview: true },
-            });
+            const jobSkillsCreateData: {
+                skillId: bigint;
+                type: string;
+                source: string;
+                confidence: number | null;
+                reason: string | null;
+                weight: number;
+            }[] = [];
 
+            for (const skillData of highConfidenceSkills) {
+                const cleanName = skillData.name.trim();
+
+                const skill = await tx.skill.upsert({
+                    where: { name: cleanName },
+                    update: {},
+                    create: {
+                        name: cleanName,
+                        category: skillData.category,
+                        needsReview: skillData.source !== JobSkillSource.MANUAL,
+                    },
+                });
+
+                jobSkillsCreateData.push({
+                    skillId: skill.id,
+                    type: skillData.type,
+                    source: skillData.source,
+                    confidence: skillData.confidence,
+                    reason: skillData.reason,
+                    weight: skillData.type === JobSkillType.REQUIRED ? 1.5 : 0.5,
+                });
+            }
 
             return tx.job.create({
                 data: {
@@ -105,37 +102,21 @@ export class JobsService {
                     requirements: dto.requirements,
                     responsibilities: dto.responsibilities || [],
                     niceToHave: dto.niceToHave || [],
-                    skills: dto.skills || [], // Сохраняем денормализованный массив для быстрых запросов
+                    skills: dto.skills || [],
                     experienceLevel: dto.experienceLevel,
                     employmentType: dto.employmentType,
                     benefits: dto.benefits || [],
                     status: dto.status,
+                    applicationCount: dto.applicantCount ?? 0,
+                    aiMatchCount: dto.aiMatchCount ?? 0,
                     jobSkills: {
-                        //временно
-                        create: [
-                            {
-                                skillId: testSkill1.id,
-                                type: 'required',
-                                source: 'manual',
-                                weight: 1.5,
-                                confidence: 0.94,
-                                reason: 'Ключевой навык для продуктового менеджера'
-                            },
-                            {
-                                skillId: testSkill2.id,
-                                type: 'nice_to_have',
-                                source: 'manual',
-                                weight: 0.5,
-                                confidence: 0.88,
-                                reason: 'Полезно для анализа метрик'
-                            },
-                        ],
+                        create: jobSkillsCreateData,
                     },
                 },
                 include: {
                     jobSkills: {
                         include: {
-                            skill: true, // Подтягиваем имя навыка из справочника
+                            skill: true,
                         },
                     },
                 },
@@ -180,7 +161,6 @@ export class JobsService {
         };
     }
 
-
     async updateJob(jobId: bigint, dto: UpdateJobDto, currentUserId: bigint) {
         const existingJob = await this.prisma.job.findUnique({
             where: { id: jobId },
@@ -210,17 +190,17 @@ export class JobsService {
                     create: {
                         name: cleanName,
                         category: 'other',
-                        needsReview: js.source !== 'manual',
+                        needsReview: js.source !== JobSkillSource.MANUAL,
                     },
                 });
 
                 jobSkillsData.push({
                     skillId: skill.id,
                     type: js.type,
-                    source: js.source || 'manual',
+                    source: js.source || JobSkillSource.MANUAL,
                     confidence: js.confidence ? Number(js.confidence) : null,
                     reason: js.reason || null,
-                    weight: js.type === 'required' ? 1.5 : 0.5,
+                    weight: js.type === JobSkillType.REQUIRED ? 1.5 : 0.5,
                 });
             }
         }
@@ -250,23 +230,6 @@ export class JobsService {
                     aiMatchCount: dto.aiMatchCount,
                 },
             });
-
-            // if (dto.jobSkills !== undefined) {
-            //     // 1. Удаляенавыковм старые связи  с этой вакансией
-            //     await tx.jobSkill.deleteMany({
-            //         where: { jobId },
-            //     });
-
-            //     // 2. Создаем новые связи (если массив не пустой)
-            //     if (jobSkillsData.length > 0) {
-            //         await tx.jobSkill.createMany({
-            //             data: jobSkillsData.map(data => ({
-            //                 ...data,
-            //                 jobId, // Привязываем к текущей вакансии
-            //             })),
-            //         });
-            //     }
-            // }
 
             return tx.job.findUnique({
                 where: { id: jobId },
@@ -309,6 +272,150 @@ export class JobsService {
             createdAt: updatedJob.createdAt,
             updatedAt: updatedJob.updatedAt,
             jobSkills: updatedJob.jobSkills.map(js => ({
+                skillId: js.skillId,
+                name: js.skill.name,
+                type: js.type,
+                reason: js.reason,
+                confidence: js.confidence ? Number(js.confidence) : null,
+                source: js.source,
+            })),
+        };
+    }
+
+    async softDeleteJob(jobId: bigint, currentUserId: bigint) {
+
+        const existingJob = await this.prisma.job.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!existingJob) {
+            throw new NotFoundException('Вакансия не найдена');
+        }
+
+        if (existingJob.deletedAt) {
+            throw new BadRequestException('Вакансия уже удалена');
+        }
+
+        const currentUser = await this.prisma.user.findUnique({
+            where: { id: currentUserId },
+            select: { id: true, role: true },
+        });
+
+        if (!currentUser) {
+            throw new NotFoundException('Пользователь не найден');
+        }
+
+        const employerProfile = await this.prisma.employerProfile.findUnique({
+            where: { userId: currentUserId },
+            select: { companyId: true },
+        });
+
+        if (!employerProfile || employerProfile.companyId !== existingJob.companyId) {
+            throw new ForbiddenException('Вы можете удалять только вакансии своей компании');
+        }
+
+        await this.prisma.job.update({
+            where: { id: jobId },
+            data: { deletedAt: new Date() },
+        });
+
+        return {
+            success: true,
+            message: 'Вакансия успешно удалена',
+            jobId,
+        };
+    }
+
+    async restoreJob(jobId: bigint, currentUserId: bigint) {
+        const existingJob = await this.prisma.job.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!existingJob) {
+            throw new NotFoundException('Вакансия не найдена');
+        }
+
+        if (!existingJob.deletedAt) {
+            throw new BadRequestException('Вакансия не была удалена');
+        }
+
+        const currentUser = await this.prisma.user.findUnique({
+            where: { id: currentUserId },
+            select: { id: true, role: true },
+        });
+
+        if (!currentUser) {
+            throw new NotFoundException('Пользователь не найден');
+        }
+
+
+        const employerProfile = await this.prisma.employerProfile.findUnique({
+            where: { userId: currentUserId },
+            select: { companyId: true },
+        });
+
+        if (!employerProfile || employerProfile.companyId !== existingJob.companyId) {
+            throw new ForbiddenException('Вы можете восстанавливать только вакансии своей компании');
+        }
+
+
+        await this.prisma.job.update({
+            where: { id: jobId },
+            data: { deletedAt: null },
+        });
+
+        return {
+            success: true,
+            message: 'Вакансия восстановлена',
+            jobId,
+        };
+    }
+
+    async getJobById(jobId: bigint) {
+        const job = await this.prisma.job.findUnique({
+            where: {
+                id: jobId,
+                deletedAt: null,
+            },
+            include: {
+                jobSkills: {
+                    include: {
+                        skill: true,
+                    },
+                },
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Вакансия не найдена или удалена');
+        }
+
+        return {
+            id: job.id,
+            companyId: job.companyId,
+            title: job.title,
+            department: job.department,
+            location: job.location,
+            remoteOption: job.remoteOption,
+            salaryRange: {
+                min: Number(job.salaryMin ?? 0),
+                max: Number(job.salaryMax ?? 0),
+                currency: job.currency ?? 'RUB',
+            },
+            description: job.description,
+            requirements: job.requirements,
+            responsibilities: job.responsibilities,
+            niceToHave: job.niceToHave,
+            skills: job.skills,
+            experienceLevel: job.experienceLevel,
+            employmentType: job.employmentType,
+            benefits: job.benefits,
+            status: job.status,
+            applicantCount: job.applicationCount ?? 0,
+            aiMatchCount: job.aiMatchCount ?? 0,
+            createdAt: job.createdAt,
+            updatedAt: job.updatedAt,
+            jobSkills: job.jobSkills.map(js => ({
                 skillId: js.skillId,
                 name: js.skill.name,
                 type: js.type,

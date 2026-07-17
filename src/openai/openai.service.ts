@@ -43,8 +43,7 @@ export class OpenAiService {
                             strict: true
                         }
                     }
-                    : { type: 'json_object' },
-                temperature: 0.2,
+                    : { type: 'json_object' }
             });
 
             const content = response.choices[0].message.content;
@@ -74,6 +73,42 @@ export class OpenAiService {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this.logger.error(`Failed to generate embedding: ${errorMessage}`);
             throw error;
+        }
+    }
+
+    async testConnection() {
+        try {
+            // 1. Тестируем чат (минимальный запрос)
+            const chatRes = await this.client.chat.completions.create({
+                model: this.chatModel,
+                messages: [{ role: 'user', content: 'Ответь одним словом: OK' }],
+                max_completion_tokens: 5,
+            });
+
+            // 2. Тестируем эмбеддинг (проверяем, что dimensions: 1536 работает)
+            const embRes = await this.client.embeddings.create({
+                model: this.embeddingModel,
+                input: 'test connection',
+                dimensions: 1536,
+            });
+
+            return {
+                status: '✅ SUCCESS',
+                chatModel: this.chatModel,
+                embeddingModel: this.embeddingModel,
+                chatResponse: chatRes.choices[0].message.content?.trim(),
+                embeddingDimensions: embRes.data[0].embedding.length,
+                message: 'Подключение к OpenAI установлено успешно!'
+            };
+        } catch (error: any) {
+            return {
+                status: '❌ ERROR',
+                chatModel: this.chatModel,
+                embeddingModel: this.embeddingModel,
+                errorMessage: error.message,
+                errorCode: error.status || error.code,
+                hint: 'Проверьте OPENAI_API_KEY и доступность модели в вашем аккаунте.'
+            };
         }
     }
 }
