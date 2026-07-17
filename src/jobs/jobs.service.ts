@@ -5,6 +5,7 @@ import { UpdateJobDto } from '@/shared/dto/jobs/update-job.dto';
 import { OpenAiService } from '@/openai/openai.service';
 import { SKILL_EXTRACTION_PROMPT, SKILL_EXTRACTION_SCHEMA } from '@/ai/prompts/create-skills/skill-extraction.prompt';
 import { JobSkillSource, JobSkillType } from '@/shared/enums/enums';
+import { EmbeddingsQueueService } from '@/queue/embeddings/embeddings-queue.service';
 
 
 
@@ -13,6 +14,7 @@ export class JobsService {
     constructor(
         private prisma: PrismaService,
         private openAiService: OpenAiService,
+        private embeddingsQueueService: EmbeddingsQueueService,
     ) { }
 
     async createJob(dto: CreateJobDto, currentUserId: bigint) {
@@ -55,6 +57,8 @@ export class JobsService {
             (skill: any) => skill.confidence >= 0.98
         );
 
+        const processedSkillIds: bigint[] = [];
+
         const createdJob = await this.prisma.$transaction(async (tx) => {
             const jobSkillsCreateData: {
                 skillId: bigint;
@@ -77,6 +81,8 @@ export class JobsService {
                         needsReview: skillData.source !== JobSkillSource.MANUAL,
                     },
                 });
+
+                processedSkillIds.push(skill.id);
 
                 jobSkillsCreateData.push({
                     skillId: skill.id,
@@ -122,6 +128,13 @@ export class JobsService {
                 },
             });
         });
+
+        await this.embeddingsQueueService.addEmbeddingJob('job', createdJob.id.toString());
+
+        // for (const skillId of processedSkillIds) {
+        //     await this.embeddingsQueueService.addEmbeddingJob('skill', skillId.toString());
+        // }
+
 
         return {
             id: createdJob.id,

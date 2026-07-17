@@ -1,6 +1,7 @@
+import { EmailQueueService } from '@/queue/email-queue/email-queue.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EmailQueueService } from '@/email-queue/email-queue.service';
+
 
 @Injectable()
 export class EmailService {

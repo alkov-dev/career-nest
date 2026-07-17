@@ -1,7 +1,5 @@
 import { Module, Global } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { EmailQueueService } from './email-queue.service';
-import { EmailQueueProcessor } from './email-queue.processor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Global()
@@ -13,8 +11,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
                 connection: {
                     host: configService.get<string>('REDIS_HOST', 'localhost'),
                     port: configService.get<number>('REDIS_PORT', 6379),
-                    // Если нужен пароль:
-                    // password: configService.get<string>('REDIS_PASSWORD')    ,
                 },
                 defaultJobOptions: {
                     removeOnComplete: 100,
@@ -28,11 +24,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             }),
             inject: [ConfigService],
         }),
-        BullModule.registerQueue({
-            name: 'email',
-        }),
+
+        BullModule.registerQueue(
+            { name: 'email' },
+            { name: 'embeddings' },
+        ),
     ],
-    providers: [EmailQueueService, EmailQueueProcessor],
-    exports: [EmailQueueService, BullModule],
+    exports: [
+        BullModule,
+    ],
 })
-export class EmailQueueModule { }
+export class QueueModule { }

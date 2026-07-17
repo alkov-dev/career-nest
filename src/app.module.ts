@@ -5,11 +5,13 @@ import { AuthModule } from './auth/auth.module';
 import { CandidateModule } from './candidate-profiles/candidate.module';
 import { EmployerModule } from './employer-profiles/emloyer.module';
 import { EmailModule } from './email/email.module';
-import { EmailQueueModule } from './email-queue/email-queue.module';
 import { MinioModule } from './minio/minio.module';
 import { UsersModule } from './users/users.module';
 import { JobsModule } from './jobs/jobs.module';
 import { OpenAiModule } from './openai/openai.module';
+import { QueueModule } from './queue/queue.module';
+import { EmailQueueModule } from './queue/email-queue/email-queue.module';
+import { EmbeddingsQueueModule } from './queue/embeddings/embeddings-queue.module';
 
 @Module({
   imports: [
@@ -23,7 +25,9 @@ import { OpenAiModule } from './openai/openai.module';
     CandidateModule,
     EmployerModule,
     EmailModule,
+    QueueModule,
     EmailQueueModule,
+    EmbeddingsQueueModule,
     MinioModule,
     JobsModule,
     OpenAiModule,
