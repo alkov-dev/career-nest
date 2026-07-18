@@ -84,14 +84,29 @@ export class JobsService {
 
                 processedSkillIds.push(skill.id);
 
-                jobSkillsCreateData.push({
-                    skillId: skill.id,
-                    type: skillData.type,
-                    source: skillData.source,
-                    confidence: skillData.confidence,
-                    reason: skillData.reason,
-                    weight: skillData.type === JobSkillType.REQUIRED ? 1.5 : 0.5,
-                });
+                if (skillData.source === JobSkillSource.MANUAL) {
+                    jobSkillsCreateData.push({
+                        skillId: skill.id,
+                        type: skillData.type,
+                        source: skillData.source,
+                        confidence: skillData.confidence,
+                        reason: skillData.reason,
+                        weight: skillData.type === JobSkillType.REQUIRED ? 1.5 : 0.5,
+                    });
+                }
+
+                const aliasesToCreate = (skillData.originalNames ?? [])
+                    .map((n: string) => n.trim())
+                    .filter((alias): alias is string => Boolean(alias) && alias !== cleanName)
+                    .map((alias) => ({ skillId: skill.id, alias }));
+
+                if (aliasesToCreate.length > 0) {
+                    await tx.skillAlias.createMany({
+                        data: aliasesToCreate,
+                        skipDuplicates: true,
+                    });
+                }
+
             }
 
             return tx.job.create({
@@ -131,9 +146,9 @@ export class JobsService {
 
         await this.embeddingsQueueService.addEmbeddingJob('job', createdJob.id.toString());
 
-        // for (const skillId of processedSkillIds) {
-        //     await this.embeddingsQueueService.addEmbeddingJob('skill', skillId.toString());
-        // }
+        for (const skillId of processedSkillIds) {
+            await this.embeddingsQueueService.addEmbeddingJob('skill', skillId.toString());
+        }
 
 
         return {

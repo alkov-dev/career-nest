@@ -20,31 +20,62 @@ export const SKILL_EXTRACTION_PROMPT = `
 
 3. Если навык из текста является синонимом ручного навыка, объедини их в один, используя каноническое название и source: "manual".
 
-4. Сохраняй тип (required/nice_to_have), указанный пользователем для ручных навыков.
+⚠️ ВАЖНО: Объединяй навыки на разных языках!
+   - "Frontend-разработка" и "Frontend development" → "Frontend-разработка" (или "Frontend development")
+   - "Unit-тестирование" и "Unit testing" → "Unit-тестирование"
+   - "Интеграционное тестирование" и "Integration testing" → "Интеграционное тестирование"
+
+4. ⚠️ ВАЖНО ДЛЯ ПОЛЯ originalNames:
+   - Возвращай ВСЕ исходные варианты названий, которые ты объединил в один канонический навык
+   - Включай как ручные варианты, так и варианты из текста вакансии
+   - Пример: если в тексте было "JS" и "javascript", а в ручных "React.js", то для канонического "JavaScript" верни originalNames: ["JS", "javascript"]
+   - Для канонического "React" верни originalNames: ["React.js"]
+   - Если исходное название совпадает с каноническим, всё равно включи его в originalNames
+
+   ✅ ВКЛЮЧАЙ:
+   - Варианты написания: "React.js", "REACT", "Реакт"
+   - Аббревиатуры: "TS", "JS", "CI/CD"
+   - Переводы: "Frontend development"
+   - Падежные формы: "Frontend-разработчика"
+
+    ЗАПРЕЩЕНО:
+   - Фразы с глаголами: "сотрудничать", "оптимизировать", "менторить"
+   - Описания обязанностей: "Тесно работать с дизайнерами"
+   - Слишком длинные фразы (>50 символов)
+   - Конкретные действия: "настраивать пайплайны"
+
+   Алиас должен быть СУЩЕСТВИТЕЛЬНЫМ или аббревиатурой,
+   а НЕ описанием того, что человек делал!
+
+5. Сохраняй тип (required/nice_to_have), указанный пользователем для ручных навыков.
    ⚠️ НЕ МЕНЯЙ тип для навыков из ручного списка.
 
-5. Возвращай confidence >= 0.95 для навыков из текста.
+6. Возвращай confidence >= 0.98 для навыков из текста.
    ⚠️ ИСКЛЮЧЕНИЕ: Для навыков с source: "manual" всегда ставь confidence: 1.0
 
 ПРИМЕР ОТВЕТА:
 {
   "skills": [
-    {
-      "name": "Работа со стейкхолдерами",
-      "category": "soft",
-      "type": "required",
-      "confidence": 1.0,
-      "reason": "Указано пользователем вручную",
-      "source": "manual"
-    },
-    {
-      "name": "Управление продуктом",
-      "category": "management",
-      "type": "required",
-      "confidence": 0.98,
-      "reason": "Основное требование вакансии",
-      "source": "ai_suggested"
-    }
+     {
+       "name": "Работа со стейкхолдерами",
+       "category": "soft",
+       "type": "required",
+       "confidence": 1.0,
+       "reason": "Указано пользователем вручную",
+-      "source": "manual"
++      "source": "manual",
++      "originalNames": ["Стейкхалдерами", "Управление стейкхолдерами"]
+     },
+     {
+       "name": "JavaScript",
+       "category": "hard",
+       "type": "required",
+       "confidence": 0.98,
+       "reason": "Основное требование вакансии",
+-      "source": "ai_suggested"
++      "source": "ai_suggested",
++      "originalNames": ["JS", "javascript"]
+     }
   ]
 }
 
@@ -76,14 +107,19 @@ export const SKILL_EXTRACTION_SCHEMA = {
                         type: 'string',
                         description: 'Краткая причина'
                     },
-                    // ✅ ИЗМЕНИЛИ: теперь сразу возвращаем source для базы
                     source: {
                         type: 'string',
                         enum: ['manual', 'ai_suggested'],
                         description: 'Источник: manual если из ручного списка, ai_suggested если из текста'
+                    },
+                    originalNames: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Все исходные варианты написания этого навыка (из ручного списка и текста), которые были объединены в каноническое название'
                     }
+
                 },
-                required: ['name', 'category', 'type', 'confidence', 'reason', 'source'],
+                required: ['name', 'category', 'type', 'confidence', 'reason', 'source', 'originalNames'],
                 additionalProperties: false
             }
         }

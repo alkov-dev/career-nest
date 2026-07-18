@@ -114,28 +114,61 @@ export class EmbeddingsQueueProcessor extends WorkerHost {
     }
 
     private async processSkillEmbedding(skillId: bigint) {
-        // Аналогичная логика для Skill через Raw SQL
+        // 1. Получаем навык И ВСЕ его алиасы (синонимы) одним запросом
         const skills = await this.prisma.$queryRaw<
-            Array<{ id: bigint; name: string; category: string | null; embedding: number[] | null }>
+            Array<{
+                id: bigint;
+                name: string;
+                category: string | null;
+                embedding: string | null; // Приводим к string для безопасности Prisma
+                aliases: string[];
+            }>
         >`
-            SELECT id, name, category, embedding
-            FROM skills
-            WHERE id = ${skillId}
-        `;
+        SELECT 
+            s.id, 
+            s.name, 
+            s.category, 
+            s.embedding::TEXT,
+            COALESCE(ARRAY_AGG(a.alias) FILTER (WHERE a.alias IS NOT NULL), ARRAY[]::text[]) as aliases
+        FROM skills s
+        LEFT JOIN skill_aliases a ON s.id = a.skill_id
+        WHERE s.id = ${skillId}
+        GROUP BY s.id, s.name, s.category, s.embedding
+    `;
 
         const skill = skills[0];
-        if (!skill || skill.embedding) return; // Идемпотентность
+
+        // Если навык не найден или эмбеддинг уже есть — выходим (идемпотентность)
+        if (!skill || skill.embedding) return;
 
         this.logger.log(`Генерация embedding для навыка #${skillId} (${skill.name})...`);
-        const textToEmbed = `${skill.name} ${skill.category || ''}`.trim();
+
+        // 2. Формируем БОГАТЫЙ контекст для эмбеддинга
+        const contextParts = [
+            `Навык: ${skill.name}`,
+            `Категория: ${skill.category || 'общий'}`,
+        ];
+
+        // Добавляем синонимы, если они есть (это резко улучшает поиск по опечаткам и вариациям)
+        if (skill.aliases && skill.aliases.length > 0) {
+            contextParts.push(`Также известен как: ${skill.aliases.join(', ')}`);
+        }
+
+
+        // Склеиваем в одну осмысленную строку
+        const textToEmbed = contextParts.join('. ');
+        // Пример результата: "Навык: React. Категория: frontend. Также известен как: React.js, ReactJS, React Library"
+        console.log("🚀 ~ textToEmbed:", textToEmbed);
+        // 3. Генерируем вектор
         const embedding = await this.openAiService.generateEmbedding(textToEmbed);
 
+        // 4. Сохраняем явно и безопасно
         await this.prisma.$executeRaw`
             UPDATE skills
             SET embedding = ${embedding}::vector
             WHERE id = ${skillId}
         `;
 
-        this.logger.log(`💾 Эмбеддинг для навыка #${skillId} сохранен.`);
+        this.logger.log(`💾 Эмбеддинг для навыка #${skillId} успешно сохранен.`);
     }
 }
